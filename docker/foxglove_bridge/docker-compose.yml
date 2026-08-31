@@ -1,0 +1,25 @@
+version: "3.8"
+
+# foxglove_bridge konténer — szeparált a robot natív rendszerétől.
+# Ld. ../../docs/00-BIZTONSAGI-SZABALYOK.md
+
+services:
+  foxglove_bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nero_go2/foxglove_bridge:foxy
+    container_name: nero_go2_foxglove_bridge
+    # network_mode: host kell a CycloneDDS multicast discovery-hez,
+    # ld. ../dev/README.md "Miért network_mode: host" szakasza.
+    network_mode: host
+    environment:
+      - ROS_DOMAIN_ID=0
+      - CYCLONEDDS_URI=/workspace/cyclonedds.container.xml
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+    volumes:
+      - ../dev/cyclonedds.container.xml:/workspace/cyclonedds.container.xml:ro
+    restart: "no"
+    # Alapértelmezett foxglove_bridge websocket port: 8765
+    # (host network miatt nincs szükség explicit ports: mappingre,
+    # a konténer közvetlenül a hoszt portjait használja)

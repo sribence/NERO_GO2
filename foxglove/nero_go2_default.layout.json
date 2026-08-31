@@ -1,0 +1,68 @@
+{
+  "configById": {
+    "3D!nerogo2lidar": {
+      "cameraState": {
+        "distance": 6,
+        "perspective": true,
+        "phi": 60,
+        "target": [0, 0, 0],
+        "targetOffset": [0, 0, 0],
+        "targetOrientation": [0, 0, 0, 1],
+        "thetaOffset": 45,
+        "fovy": 45,
+        "near": 0.01,
+        "far": 100
+      },
+      "followMode": "follow-pose",
+      "followTf": null,
+      "scene": {},
+      "transforms": {},
+      "topics": {
+        "/utlidar/cloud_deskewed": {
+          "visible": true,
+          "pointSize": 3,
+          "colorMode": "colormap",
+          "colorField": "z"
+        }
+      },
+      "layers": {},
+      "publish": { "type": "point", "poseTopic": "", "pointTopic": "", "poseEstimateTopic": "", "poseEstimateXDeviation": 0.5, "poseEstimateYDeviation": 0.5, "poseEstimateThetaDeviation": 0.26 },
+      "imageMode": {}
+    },
+    "RawMessages!nerogo2lowstate": {
+      "topicPath": "/lf/lowstate",
+      "diffEnabled": false,
+      "showFullMessageForDiff": false
+    },
+    "RawMessages!nerogo2sportstate": {
+      "topicPath": "/lf/sportmodestate",
+      "diffEnabled": false,
+      "showFullMessageForDiff": false
+    },
+    "RawMessages!nerogo2wireless": {
+      "topicPath": "/wirelesscontroller",
+      "diffEnabled": false,
+      "showFullMessageForDiff": false
+    }
+  },
+  "globalVariables": {},
+  "userNodes": {},
+  "linkedGlobalVariables": [],
+  "playbackConfig": { "speed": 1 },
+  "layout": {
+    "first": "3D!nerogo2lidar",
+    "second": {
+      "first": {
+        "first": "RawMessages!nerogo2lowstate",
+        "second": "RawMessages!nerogo2sportstate",
+        "direction": "column",
+        "splitPercentage": 50
+      },
+      "second": "RawMessages!nerogo2wireless",
+      "direction": "column",
+      "splitPercentage": 66
+    },
+    "direction": "row",
+    "splitPercentage": 62
+  }
+}
