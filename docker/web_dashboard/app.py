@@ -1,0 +1,277 @@
+"""
+NERO_GO2 web control dashboard.
+
+Architectural pattern (joystick/action UX, DDS client usage) adapted from
+go2_dashboard by bentheperson1 (https://github.com/bentheperson1/go2_dashboard,
+MIT licence) — this is a fresh implementation, not a copy, and split into two
+services (this one is UI + movement control; camera/lidar/webrtc telemetry
+live in the separate `webrtc_bridge` service, ld. ../webrtc_bridge/).
+
+Why two services: the robot allows only ONE WebRTC client at a time. This
+service never opens its own WebRTC connection - it proxies camera/lidar/health
+from `webrtc_bridge`'s HTTP API. Movement control and low-level telemetry use
+`unitree_sdk2py`'s native CycloneDDS channel instead, which is a completely
+separate transport and does not conflict with WebRTC.
+
+SAFETY: movement (joystick, action buttons) is gated behind a server-side
+"armed" flag, default False, auto-disarmed after 30s of inactivity. This
+exists because an unintended movement command on real hardware is a real
+safety/damage risk - ld. ../../docs/00-BIZTONSAGI-SZABALYOK.md.
+
+Generated with help from a local qwen2.5-coder:14b model, then substantially
+rewritten by hand (the model's first draft had a non-functional joystick
+frontend, several scoping bugs, and an invented SDK method) — ld.
+../../docs/13-lokalis-llm-delegalas.md for what was wrong and why.
+"""
+
+import json
+import logging
+import os
+import threading
+import time
+
+import requests
+from flask import Flask, Response, jsonify, render_template, request
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("nero_go2.web_dashboard")
+
+app = Flask(__name__)
+
+WEBRTC_BRIDGE_URL = os.environ.get("WEBRTC_BRIDGE_URL", "http://localhost:5001")
+UNITREE_ROBOT_SN = os.environ.get("UNITREE_ROBOT_SN", "")
+
+MOVE_SPEED = 0.5
+TURN_SPEED = 1.0
+ARM_TIMEOUT_S = 30
+
+# --- shared state ---
+_lock = threading.Lock()
+dog_data = {
+    "voltage": None,
+    "current": None,
+    "avg_temp": None,
+    "velocity_x": None,
+    "velocity_y": None,
+    "velocity_z": None,
+    "yaw_speed": None,
+}
+_armed = False
+_last_activity = time.time()
+_move_state = {"x": 0.0, "y": 0.0, "yaw": 0.0}
+
+sdk_ready = False
+sport_client = None
+
+
+def _touch_activity():
+    global _last_activity
+    with _lock:
+        _last_activity = time.time()
+
+
+def _is_armed():
+    with _lock:
+        return _armed
+
+
+def _set_armed(value: bool):
+    global _armed
+    with _lock:
+        _armed = value
+    if value:
+        _touch_activity()
+
+
+def _watchdog():
+    """Auto-disarm after ARM_TIMEOUT_S seconds without joystick/action activity."""
+    while True:
+        time.sleep(1)
+        with _lock:
+            idle = _armed and (time.time() - _last_activity) > ARM_TIMEOUT_S
+        if idle:
+            logger.info("no activity for %ss, auto-disarming", ARM_TIMEOUT_S)
+            _set_armed(False)
+
+
+threading.Thread(target=_watchdog, daemon=True).start()
+
+
+def _init_sdk():
+    """Connect to the robot's native DDS channel. Runs in a background thread
+    so a robot that isn't reachable yet doesn't prevent the web server (and
+    the camera/telemetry proxy routes, which don't need this) from starting."""
+    global sdk_ready, sport_client
+    try:
+        from unitree_sdk2py.idl.idl_dataclass import IDLDataClass
+        from unitree_sdk2py.core.dds.channel import DDSChannelFactoryInitialize
+        from unitree_sdk2py.sdk.sdk import create_standard_sdk
+        from unitree_sdk2py.go2.sport.sport_client import SportClient
+
+        idl_data_class = IDLDataClass()
+        LowState_ = idl_data_class.get_data_class("LowState_")
+        SportModeState_ = idl_data_class.get_data_class("SportModeState_")
+
+        def low_state_handler(msg):
+            with _lock:
+                dog_data["voltage"] = round(msg.power_v, 2)
+                dog_data["current"] = round(msg.power_a, 2)
+                dog_data["avg_temp"] = round((msg.temperature_ntc1 + msg.temperature_ntc2) / 2, 1)
+
+        def sport_state_handler(msg):
+            with _lock:
+                dog_data["velocity_x"] = round(msg.velocity[0], 2)
+                dog_data["velocity_y"] = round(msg.velocity[1], 2)
+                dog_data["velocity_z"] = round(msg.velocity[2], 2)
+                dog_data["yaw_speed"] = round(msg.yaw_speed, 2)
+
+        sdk = create_standard_sdk("NeroGo2Dashboard")
+        communicator = DDSChannelFactoryInitialize(domainId=0)
+        robot = sdk.create_robot(communicator, serialNumber=UNITREE_ROBOT_SN)
+
+        low_state_sub = communicator.ChannelSubscriber("rt/lowstate", LowState_)
+        low_state_sub.Init(low_state_handler, 10)
+        sport_state_sub = communicator.ChannelSubscriber("rt/sportmodestate", SportModeState_)
+        sport_state_sub.Init(sport_state_handler, 10)
+
+        client = SportClient()
+        client.SetTimeout(3.0)
+        client.Init()
+
+        sport_client = client
+        sdk_ready = True
+        logger.info("DDS/SportClient ready")
+    except Exception:
+        logger.exception("failed to initialise unitree_sdk2py DDS connection - movement/telemetry disabled")
+
+
+threading.Thread(target=_init_sdk, daemon=True).start()
+
+
+def _actions():
+    if not sport_client:
+        return {}
+    return {
+        "stand_up": sport_client.RecoveryStand,
+        "lay_down": sport_client.StandDown,
+        "wave": sport_client.Hello,
+        "heart": sport_client.Heart,
+        "sit": sport_client.Sit,
+    }
+
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/camera_feed")
+def camera_feed():
+    def generate():
+        while True:
+            try:
+                r = requests.get(f"{WEBRTC_BRIDGE_URL}/camera.jpg", timeout=2)
+                if r.status_code == 200:
+                    yield (
+                        b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + r.content + b"\r\n"
+                    )
+            except requests.RequestException as e:
+                logger.debug("camera proxy fetch failed: %s", e)
+            time.sleep(0.1)
+
+    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.route("/lidar_proxy")
+def lidar_proxy():
+    try:
+        r = requests.get(f"{WEBRTC_BRIDGE_URL}/lidar", timeout=2)
+        return Response(r.content, status=r.status_code, mimetype="application/json")
+    except requests.RequestException as e:
+        return jsonify({"error": str(e)}), 502
+
+
+@app.route("/data")
+def data():
+    def generate():
+        while True:
+            bridge_health = {"connected": False}
+            try:
+                r = requests.get(f"{WEBRTC_BRIDGE_URL}/health", timeout=2)
+                if r.status_code == 200:
+                    bridge_health = r.json()
+            except requests.RequestException:
+                pass
+
+            with _lock:
+                payload = dict(dog_data)
+                payload["armed"] = _armed
+
+            payload["sdk_ready"] = sdk_ready
+            payload["bridge_connected"] = bridge_health.get("connected", False)
+
+            yield f"data: {json.dumps(payload)}\n\n"
+            time.sleep(1)
+
+    return Response(generate(), mimetype="text/event-stream")
+
+
+@app.route("/arm", methods=["POST"])
+def arm():
+    if not sdk_ready:
+        return jsonify({"error": "robot DDS connection not ready"}), 409
+    _set_armed(True)
+    return jsonify({"status": "armed"})
+
+
+@app.route("/disarm", methods=["POST"])
+def disarm():
+    _set_armed(False)
+    return jsonify({"status": "disarmed"})
+
+
+@app.route("/update_joystick", methods=["POST"])
+def update_joystick():
+    if not _is_armed():
+        return jsonify({"error": "not armed"}), 403
+    if not sport_client:
+        return jsonify({"error": "sdk not ready"}), 409
+
+    payload = request.get_json(force=True)
+    stick_id = payload.get("stickId")
+    sx = float(payload.get("x", 0))
+    sy = float(payload.get("y", 0))
+
+    with _lock:
+        if stick_id == "stick1":
+            _move_state["x"] = -sy * MOVE_SPEED
+            _move_state["y"] = -sx * MOVE_SPEED
+        elif stick_id == "stick2":
+            _move_state["yaw"] = -sx * TURN_SPEED
+        x, y, yaw = _move_state["x"], _move_state["y"], _move_state["yaw"]
+
+    try:
+        sport_client.Move(x, y, yaw)
+    except Exception:
+        logger.exception("Move() failed")
+        return jsonify({"error": "move command failed"}), 500
+
+    _touch_activity()
+    return jsonify({"status": "ok", "x": x, "y": y, "yaw": yaw})
+
+
+@app.route("/run_action/<action_name>", methods=["POST"])
+def run_action(action_name):
+    if not _is_armed():
+        return jsonify({"error": "not armed"}), 403
+    action = _actions().get(action_name)
+    if not action:
+        return jsonify({"error": "unknown action"}), 404
+
+    threading.Thread(target=action, daemon=True).start()
+    _touch_activity()
+    return jsonify({"status": f"running {action_name}"})
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5002)

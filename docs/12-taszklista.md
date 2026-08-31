@@ -25,9 +25,10 @@ Jelmagyarázat: 🤖 = kell hozzá élő robot · 💻 = robot nélkül, laptopo
 
 ## Fázis 2 — webes irányítópult
 
-- [ ] 💻 `go2_dashboard` (Flask) áttekintése, licenc-ellenőrzés, fork a `docker/web_dashboard/` alá
-- [ ] 💻 NERO_GO2 saját dizájn/branding a felületre (diákbarát, látványos)
-- [ ] 🤖 Alapfunkciók bekötése: mód-váltó gombok (állj/ülj/damping — **óvatosan, ld. biztonsági szabályok**), élő kamera-panel
+- [x] 💻 `go2_dashboard` (Flask) áttekintése, licenc-ellenőrzés, fork a `docker/web_dashboard/` alá — 2026-08-31, helyi LLM vázlat + jelentős kézi átírás (ld. [13-lokalis-llm-delegalas.md](13-lokalis-llm-delegalas.md))
+- [x] 💻 NERO_GO2 saját dizájn/branding a felületre (diákbarát, látványos) — sötét téma, magyar UI szöveg, arm/disarm biztonsági kapcsoló
+- [ ] 🤖 `unitree_sdk2py` függőség megoldása (nem sima PyPI-csomag, ld. `docker/web_dashboard/README.md`)
+- [ ] 🤖 Alapfunkciók élő tesztelése: mód-váltó gombok (állj/ülj/damping — **óvatosan, ld. biztonsági szabályok**), élő kamera-panel
 - [ ] 🤖 LiDAR 3D-nézet beágyazása a webes felületbe (Foxglove-elvek átvéve, vagy három.js-alapú saját megjelenítő)
 - [ ] 🤖 RealSense mélységkép-panel hozzáadása
 - [ ] 💻 Docker Compose-ba szervezve az összes eddigi konténer (dev, foxglove_bridge, webrtc_bridge, web_dashboard) egy stack-ként

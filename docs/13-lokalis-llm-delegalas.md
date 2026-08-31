@@ -33,3 +33,16 @@ A `qwen2.5-coder:14b` első generálása több hibát tartalmazott:
 - a `requirements.txt`-ben egy nem-létező pip-csomag (`portaudio` — ez rendszerkönyvtár, nem pip-csomag)
 
 Mindezt Claude javította, mielőtt a fájlok bekerültek a repóba. Ez pontosan a várt munkamód — nem "vakon elfogadjuk", hanem generálás + kötelező review.
+
+## Második példa: `docker/web_dashboard/` (2026-08-31) — itt már látszott a modell határa
+
+Ez egy összetettebb feladat volt (két szolgáltatás kombinálása, biztonsági arm/disarm-logika, teljes interaktív frontend) — a `qwen2.5-coder:14b` itt **jóval többet és súlyosabbat** hibázott, mint az egyszerűbb `webrtc_bridge`-nél:
+
+- **a kért joystick-vezérlés funkcionálisan teljesen hiányzott** — a HTML csak statikus köröket rajzolt ki, semmilyen drag/touch/mouse-logika nem készült el, pedig ez volt a feladat egyik fő, explicit kért eleme
+- `import json` hiányzott, pedig `json.dumps()`-t hívott — ez garantáltan `NameError`-ral elszállt volna az első SSE-üzenetnél
+- globális változók (`armed`, `last_activity_timestamp`) módosítása `global` deklaráció nélkül több függvényben — ez `UnboundLocalError`-t okozott volna az első joystick-/arm-hívásnál
+- **kitalált, nem létező SDK-metódust hívott** (`sport_client.Yaw(...)`) — a valós API-ban csak `Move(x, y, yaw)` van
+- a frontend JS más mezőneveket várt (`data.avg_temp`, snake_case), mint amit a backend ténylegesen küldött (`"avg temp"`, szóközös kulcsok) — a telemetria soha nem jelent volna meg
+- az akció-gombokhoz (Állj fel, Ülj stb.) **nem volt kattintás-eseménykezelő bekötve** — a gombok semmit nem csináltak volna
+
+**Tanulság:** ez megerősíti a korábban idézett kutatási megállapítást — összetett, több-komponensű, architekturális döntéseket is igénylő feladatoknál a 14B-s modell megbízhatósága érezhetően leesik az egyszerű, egyfájlos, jól dokumentált API-ra épülő feladatokhoz képest. Ennél a modulnál a végleges kód nagyrészt **kézzel újraírásra került** (főleg a frontend), a modell kimenete inkább "vázlat/kiindulópont" szerepet töltött be, nem "majdnem kész termék"-et. Jövőbeli hasonló, összetett feladatoknál érdemes vagy jobban lebontani kisebb, egyfájlos al-feladatokra, vagy eleve számítani rá, hogy a review lépés nagyobb arányú újraírással jár.

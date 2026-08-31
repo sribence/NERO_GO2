@@ -30,6 +30,7 @@ Ez egy drága, nehezen pótolható konfigurációjú példány. A natív, gyári
 - [docker/dev/](docker/dev/) — szeparált Docker fejlesztői környezet (ROS2 Foxy, L4T R35.3.1-illesztett image)
 - [docker/foxglove_bridge/](docker/foxglove_bridge/) — `foxglove_bridge` build forrásból (Foxy-hoz nincs kész csomag), folyamatban
 - [docker/webrtc_bridge/](docker/webrtc_bridge/) — kamera+LiDAR+telemetria a hivatalos WebRTC-protokollon, **nem tesztelve élőben**
+- [docker/web_dashboard/](docker/web_dashboard/) — fő webes vezérlőpult, joystick+akció-gombok+arm/disarm biztonsági zár, **nem tesztelve élőben, függőség hiányos**
 - [docs/13-lokalis-llm-delegalas.md](docs/13-lokalis-llm-delegalas.md) — hogyan generálódik a kód helyi Qwen2.5-Coder modellel, Claude-review-val
 - [foxglove/](foxglove/) — Foxglove Studio layout/config a robot élő adatainak megjelenítéséhez
 - [backups/](backups/) — konfig-pillanatképek + Docker image mentések

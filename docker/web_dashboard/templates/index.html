@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NERO_GO2 Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2e38;
+    --text: #e8e9ec;
+    --muted: #8b8f9a;
+    --accent: #3d8bfd;
+    --danger: #e5484d;
+    --ok: #3fb950;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    margin: 0;
+    padding: 24px;
+  }
+  h1 { font-size: 20px; font-weight: 500; margin: 0 0 16px; }
+  h3 { font-size: 13px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 10px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    max-width: 1100px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .camera-panel img { width: 100%; border-radius: 6px; display: block; background: #000; aspect-ratio: 16/9; object-fit: cover; }
+  .status-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .badge { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .badge.on { color: var(--ok); border-color: var(--ok); }
+  .badge.off { color: var(--danger); border-color: var(--danger); }
+  .telemetry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 13px; }
+  .telemetry-grid div span { color: var(--muted); }
+  .telemetry-grid div b { display: block; font-size: 16px; font-weight: 500; }
+  .arm-btn {
+    width: 100%; padding: 12px; font-size: 14px; font-weight: 500;
+    border-radius: 8px; border: none; cursor: pointer; margin-bottom: 16px;
+  }
+  .arm-btn.disarmed { background: var(--border); color: var(--text); }
+  .arm-btn.armed { background: var(--danger); color: white; }
+  .sticks { display: flex; justify-content: space-around; margin: 16px 0; }
+  .stick-base {
+    width: 120px; height: 120px; border-radius: 50%;
+    background: #0b0d11; border: 1px solid var(--border);
+    position: relative; touch-action: none;
+  }
+  .stick-knob {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--accent); position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .stick-base.disabled .stick-knob { background: var(--border); }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+  .actions button {
+    padding: 10px; font-size: 13px; border-radius: 6px; border: 1px solid var(--border);
+    background: #1c202a; color: var(--text); cursor: pointer;
+  }
+  .actions button:disabled { opacity: 0.35; cursor: not-allowed; }
+  .actions button:not(:disabled):hover { border-color: var(--accent); }
+</style>
+</head>
+<body>
+  <h1>NERO_GO2 vezérlőpult</h1>
+  <div class="grid">
+    <div>
+      <div class="panel camera-panel">
+        <h3>Élő kamera</h3>
+        <img src="/camera_feed" alt="Élő kamerakép">
+        <div class="status-row">
+          <span class="badge" id="badge-bridge">webrtc_bridge</span>
+          <span class="badge" id="badge-sdk">DDS/SDK</span>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:16px;">
+        <h3>Telemetria</h3>
+        <div class="telemetry-grid">
+          <div><span>Feszültség</span><b id="t-voltage">–</b></div>
+          <div><span>Áram</span><b id="t-current">–</b></div>
+          <div><span>Átlaghőmérséklet</span><b id="t-temp">–</b></div>
+          <div><span>Yaw sebesség</span><b id="t-yaw">–</b></div>
+          <div><span>Sebesség X</span><b id="t-vx">–</b></div>
+          <div><span>Sebesség Y</span><b id="t-vy">–</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Vezérlés</h3>
+      <button class="arm-btn disarmed" id="arm-btn">🔒 Vezérlés zárolva – kattints a feloldáshoz</button>
+      <div class="sticks">
+        <div class="stick-base disabled" id="stick1"><div class="stick-knob"></div></div>
+        <div class="stick-base disabled" id="stick2"><div class="stick-knob"></div></div>
+      </div>
+      <div class="actions">
+        <button data-action="stand_up" disabled>Állj fel</button>
+        <button data-action="lay_down" disabled>Feküdj le</button>
+        <button data-action="sit" disabled>Ülj</button>
+        <button data-action="wave" disabled>Integess</button>
+        <button data-action="heart" disabled>Szív</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+let armed = false;
+
+function setArmedUI(isArmed) {
+  armed = isArmed;
+  const btn = document.getElementById('arm-btn');
+  btn.textContent = isArmed ? '🔓 Vezérlés feloldva – kattints a zároláshoz' : '🔒 Vezérlés zárolva – kattints a feloldáshoz';
+  btn.className = 'arm-btn ' + (isArmed ? 'armed' : 'disarmed');
+  document.querySelectorAll('.actions button').forEach(b => b.disabled = !isArmed);
+  document.querySelectorAll('.stick-base').forEach(el => el.classList.toggle('disabled', !isArmed));
+}
+
+document.getElementById('arm-btn').addEventListener('click', () => {
+  fetch(armed ? '/disarm' : '/arm', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => { if (!d.error) setArmedUI(!armed); else alert(d.error); })
+    .catch(() => {});
+});
+
+document.querySelectorAll('.actions button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    fetch('/run_action/' + btn.dataset.action, { method: 'POST' })
+      .then(r => r.json())
+      .catch(() => {});
+  });
+});
+
+// --- vanilla-JS draggable joystick, touch + mouse ---
+function setupStick(elId, stickId) {
+  const base = document.getElementById(elId);
+  const knob = base.querySelector('.stick-knob');
+  const radius = base.clientWidth / 2;
+  let dragging = false;
+
+  function send(x, y) {
+    if (!armed) return;
+    fetch('/update_joystick', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stickId, x, y }),
+    }).catch(() => {});
+  }
+
+  function move(clientX, clientY) {
+    const rect = base.getBoundingClientRect();
+    let dx = clientX - (rect.left + radius);
+    let dy = clientY - (rect.top + radius);
+    const dist = Math.min(Math.hypot(dx, dy), radius - 22);
+    const angle = Math.atan2(dy, dx);
+    dx = Math.cos(angle) * dist;
+    dy = Math.sin(angle) * dist;
+    knob.style.transform = `translate(${dx - 22}px, ${dy - 22}px)`;
+    send(dx / (radius - 22), dy / (radius - 22));
+  }
+
+  function reset() {
+    knob.style.transform = 'translate(-50%, -50%)';
+    send(0, 0);
+  }
+
+  base.addEventListener('pointerdown', (e) => {
+    if (!armed) return;
+    dragging = true;
+    base.setPointerCapture(e.pointerId);
+    move(e.clientX, e.clientY);
+  });
+  base.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    move(e.clientX, e.clientY);
+  });
+  base.addEventListener('pointerup', () => { dragging = false; reset(); });
+  base.addEventListener('pointercancel', () => { dragging = false; reset(); });
+}
+
+setupStick('stick1', 'stick1');
+setupStick('stick2', 'stick2');
+
+// --- live telemetry via SSE ---
+const src = new EventSource('/data');
+src.onmessage = (event) => {
+  const d = JSON.parse(event.data);
+  document.getElementById('t-voltage').textContent = d.voltage != null ? d.voltage + ' V' : '–';
+  document.getElementById('t-current').textContent = d.current != null ? d.current + ' A' : '–';
+  document.getElementById('t-temp').textContent = d.avg_temp != null ? d.avg_temp + ' °C' : '–';
+  document.getElementById('t-yaw').textContent = d.yaw_speed != null ? d.yaw_speed + ' °/s' : '–';
+  document.getElementById('t-vx').textContent = d.velocity_x != null ? d.velocity_x + ' m/s' : '–';
+  document.getElementById('t-vy').textContent = d.velocity_y != null ? d.velocity_y + ' m/s' : '–';
+
+  const bridgeBadge = document.getElementById('badge-bridge');
+  bridgeBadge.className = 'badge ' + (d.bridge_connected ? 'on' : 'off');
+  bridgeBadge.textContent = 'webrtc_bridge: ' + (d.bridge_connected ? 'csatlakozva' : 'nincs kapcsolat');
+
+  const sdkBadge = document.getElementById('badge-sdk');
+  sdkBadge.className = 'badge ' + (d.sdk_ready ? 'on' : 'off');
+  sdkBadge.textContent = 'DDS/SDK: ' + (d.sdk_ready ? 'kész' : 'nincs kapcsolat');
+
+  // ha a szerver oldal magától disarm-olt (pl. inaktivitás miatt), kövessük le itt is
+  if (armed && d.armed === false) setArmedUI(false);
+};
+</script>
+</body>
+</html>

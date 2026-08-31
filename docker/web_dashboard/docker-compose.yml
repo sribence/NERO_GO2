@@ -1,0 +1,19 @@
+version: "3.8"
+
+# NERO_GO2 web dashboard — szeparált a robot natív rendszerétől.
+# Ld. ../../docs/00-BIZTONSAGI-SZABALYOK.md
+
+services:
+  web_dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nero_go2/web_dashboard:latest
+    container_name: nero_go2_web_dashboard
+    network_mode: host
+    environment:
+      - WEBRTC_BRIDGE_URL=http://localhost:5001
+      - UNITREE_ROBOT_SN=  # ide kell a robot sorozatszáma
+    depends_on: []  # host network miatt nincs docker-compose szintű service-discovery, a webrtc_bridge-nek külön kell futnia
+    restart: "no"
+    # Flask port: 5002
