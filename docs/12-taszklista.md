@@ -1,0 +1,59 @@
+# Taszklista — sorrendben, fázisonként
+
+Ez a konkrét, végrehajtható feladatlista a [11-oktatocsomag-terv.md](11-oktatocsomag-terv.md) architektúrájához. Minden taszknál jelölve, hogy kell-e hozzá fizikai robot-kapcsolat.
+
+Jelmagyarázat: 🤖 = kell hozzá élő robot · 💻 = robot nélkül, laptopon csinálható
+
+## Fázis 0 — alapok (KÉSZ, 2026-08-31)
+
+- [x] 💻 Hálózat/rendszer/ROS/DDS teljes feltérképezés
+- [x] 💻 NERO_GO2 repó + biztonsági szabályzat
+- [x] 🤖 Ideiglenes internet a robotnak
+- [x] 🤖 ROS2 Foxy Jetson dev image-ek lehúzva + helyi mentés
+- [x] 💻 `foxglove_bridge` Dockerfile + GPG-hiba javítás (build nincs végigfuttatva)
+
+## Fázis 1 — érzékelés/kommunikáció alapréteg
+
+- [ ] 🤖 `foxglove_bridge` build befejezése és tesztelése (`docker/foxglove_bridge/`)
+- [ ] 🤖 Foxglove Studio élő kapcsolat tesztelése (`foxglove/nero_go2_default.layout.json`)
+- [ ] 🤖 A [09-dds-interfesz-eltapasztalas.md](09-dds-interfesz-eltapasztalas.md) `eth0`/`eth10` hiba hatásának ellenőrzése — látszanak-e a `rt/...` topicok
+- [ ] 💻 `unitree_webrtc_connect` (MIT) áttekintése, licenc-ellenőrzés, fork/vendor-elés a `docker/webrtc_bridge/` alá
+- [ ] 🤖 `unitree_webrtc_connect` Docker-konténerbe téve, első élő kamera-frame teszt
+- [ ] 🤖 LiDAR pontfelhő dekódolás tesztelése ugyanezen a csatornán
+- [ ] 🤖 Intel RealSense D435i fizikai csatlakozásának azonosítása (Jetson USB vs. mozgásvezérlő) + `librealsense`/`realsense-ros` Docker-konténerben tesztelve
+- [ ] 💻 Ezen a ponton dokumentálni: melyik szenzor melyik csatornán, milyen formátumban érhető el (referencia-táblázat a repóba)
+
+## Fázis 2 — webes irányítópult
+
+- [ ] 💻 `go2_dashboard` (Flask) áttekintése, licenc-ellenőrzés, fork a `docker/web_dashboard/` alá
+- [ ] 💻 NERO_GO2 saját dizájn/branding a felületre (diákbarát, látványos)
+- [ ] 🤖 Alapfunkciók bekötése: mód-váltó gombok (állj/ülj/damping — **óvatosan, ld. biztonsági szabályok**), élő kamera-panel
+- [ ] 🤖 LiDAR 3D-nézet beágyazása a webes felületbe (Foxglove-elvek átvéve, vagy három.js-alapú saját megjelenítő)
+- [ ] 🤖 RealSense mélységkép-panel hozzáadása
+- [ ] 💻 Docker Compose-ba szervezve az összes eddigi konténer (dev, foxglove_bridge, webrtc_bridge, web_dashboard) egy stack-ként
+
+## Fázis 3 — navigáció / waypoint-feladatok
+
+- [ ] 💻 `autonomy_stack_go2` (Point-LIO + FAR Planner) áttekintése, függőségek listázása
+- [ ] 🤖 Docker-konténerbe integrálva, IMU-kalibráció elvégezve (a projekt ezt előfeltételként írja)
+- [ ] 🤖 Alap SLAM-térképezés tesztelése (a meglévő `graph_pid_ws` LiDAR-driverekkel is összevetve, ld. [05-egyedi-slam-stack.md](05-egyedi-slam-stack.md))
+- [ ] 🤖 Egyetlen cél-pont navigáció tesztelése (RViz-ből vagy a saját webes felületről)
+- [ ] 💻 "Felvevő pont / letevő pont" workflow megtervezése a webes felületen (két pont kijelölése térképen, `/follow_waypoints` action meghívása)
+- [ ] 🤖 Teljes "menj a pontra, csinálj valamit, menj a másik pontra" demo-szekvencia tesztelése
+
+## Fázis 4 — objektumkövetés / AI
+
+- [ ] 💻 `unitree-go2-follow-system` (YOLOv8+PID) áttekintése
+- [ ] 🤖 YOLO modell tesztelése a RealSense/kamera streamen (felismerési pontosság, Jetson terhelés/hő ellenőrzése `tegrastats`-tal)
+- [ ] 🤖 Objektum-kijelölés a webes felületről (kattints a kamera-képen egy dobozra → kövesse azt)
+- [ ] 🤖 Követés + mozgásvezérlés összekötése (a `rt/sportmodecmd` felé), **fokozott óvatossággal, fizikai biztonsági távolság betartásával**
+
+## Fázis 5 — oktatási csomagolás
+
+- [ ] 💻 Bemutató forgatókönyv/script diákoknak (mit mutatunk, milyen sorrendben, mekkora biztonsági terület kell)
+- [ ] 💻 Rövid, vizuális dokumentáció/cheat sheet a repóba (mi micsoda, hogyan indítjuk el élőben)
+- [ ] 💻 Hibaelhárítási útmutató (mi a teendő, ha X nem működik demó közben)
+
+## Megjegyzés a sorrendhez
+
+A fázisok **egymásra épülnek** (1 → 2 → 3 → 4), de a 💻-jelölt taszkok bármikor előre vehetők, amikor nincs robot-hozzáférés — ahogy ma este is történt. Javaslom, hogy minden robotos munkanap elején nézzük át, melyik 🤖-taszk van soron, és azt köztük végezzük el elsőként, amíg friss/jó az internet és a robot ideje.
