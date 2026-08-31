@@ -1,0 +1,291 @@
+﻿Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme0n1p1  469G   21G  429G   5% /
+none            7.4G     0  7.4G   0% /dev
+tmpfs           7.6G     0  7.6G   0% /dev/shm
+tmpfs           1.6G   27M  1.5G   2% /run
+tmpfs           5.0M  4.0K  5.0M   1% /run/lock
+tmpfs           7.6G     0  7.6G   0% /sys/fs/cgroup
+tmpfs           1.6G   16K  1.6G   1% /run/user/124
+tmpfs           1.6G  4.0K  1.6G   1% /run/user/1000
+---
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: dummy0: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/ether e6:69:c2:0d:ee:4b brd ff:ff:ff:ff:ff:ff
+3: eth10: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 4c:bb:47:f0:1b:0a brd ff:ff:ff:ff:ff:ff
+    altname enP8p1s0
+    inet 192.168.123.18/24 brd 192.168.123.255 scope global noprefixroute eth10
+       valid_lft forever preferred_lft forever
+    inet6 fe80::4ebb:47ff:fef0:1b0a/64 scope link 
+       valid_lft forever preferred_lft forever
+4: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether 02:42:91:03:c1:cd brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+       valid_lft forever preferred_lft forever
+---
+UNIT FILE                                  STATE           VENDOR PRESET
+accounts-daemon.service                    enabled         enabled      
+alsa-restore.service                       static          enabled      
+alsa-state.service                         static          enabled      
+alsa-utils.service                         masked          enabled      
+anacron.service                            enabled         enabled      
+apparmor.service                           enabled         enabled      
+apport-autoreport.service                  static          enabled      
+apport-forward@.service                    static          enabled      
+apport.service                             generated       enabled      
+apt-daily-upgrade.service                  static          enabled      
+apt-daily.service                          static          enabled      
+apt-news.service                           static          enabled      
+auth-rpcgss-module.service                 static          enabled      
+autovt@.service                            enabled         enabled      
+avahi-daemon.service                       enabled         enabled      
+binfmt-support.service                     enabled         enabled      
+bluetooth.service                          enabled         enabled      
+bolt.service                               static          enabled      
+brltty-udev.service                        static          enabled      
+brltty.service                             disabled        enabled      
+clean-mount-point@.service                 static          enabled      
+colord.service                             static          enabled      
+configure-printer@.service                 static          enabled      
+console-getty.service                      disabled        disabled     
+console-setup.service                      enabled         enabled      
+container-getty@.service                   static          enabled      
+containerd.service                         enabled         enabled      
+cron.service                               enabled         enabled      
+cryptdisks-early.service                   masked          enabled      
+cryptdisks.service                         masked          enabled      
+dbus-fi.w1.wpa_supplicant1.service         enabled         enabled      
+dbus-org.bluez.service                     enabled         enabled      
+dbus-org.freedesktop.Avahi.service         enabled         enabled      
+dbus-org.freedesktop.hostname1.service     static          enabled      
+dbus-org.freedesktop.locale1.service       static          enabled      
+dbus-org.freedesktop.login1.service        static          enabled      
+dbus-org.freedesktop.ModemManager1.service enabled         enabled      
+dbus-org.freedesktop.nm-dispatcher.service enabled         enabled      
+dbus-org.freedesktop.resolve1.service      enabled         enabled      
+dbus-org.freedesktop.timedate1.service     static          enabled      
+dbus-org.freedesktop.timesync1.service     enabled         enabled      
+dbus.service                               static          enabled      
+debug-shell.service                        disabled        disabled     
+display-manager.service                    static          enabled      
+dmesg.service                              enabled         enabled      
+docker.service                             enabled         enabled      
+e2scrub@.service                           static          enabled      
+e2scrub_all.service                        static          enabled      
+e2scrub_fail@.service                      static          enabled      
+e2scrub_reap.service                       enabled         enabled      
+emergency.service                          static          enabled      
+esm-cache.service                          static          enabled      
+fio.service                                disabled        enabled      
+fprintd.service                            static          enabled      
+fstrim.service                             static          enabled      
+fwupd-offline-update.service               static          enabled      
+fwupd-refresh.service                      static          disabled     
+fwupd.service                              static          enabled      
+gdm.service                                static          enabled      
+gdm3.service                               static          enabled      
+geoclue.service                            static          enabled      
+getty-static.service                       static          enabled      
+getty@.service                             enabled         enabled      
+go2_test.service                           static          enabled      
+grub-common.service                        enabled         enabled      
+grub-initrd-fallback.service               enabled         enabled      
+haveged.service                            enabled         enabled      
+hddtemp.service                            generated       enabled      
+hwclock.service                            masked          enabled      
+iio-sensor-proxy.service                   static          enabled      
+initrd-cleanup.service                     static          enabled      
+initrd-parse-etc.service                   static          enabled      
+initrd-switch-root.service                 static          enabled      
+initrd-udevadm-cleanup-db.service          static          enabled      
+ippusbxd@.service                          static          enabled      
+isc-dhcp-server.service                    disabled        enabled      
+isc-dhcp-server6.service                   disabled        enabled      
+kerneloops.service                         enabled         enabled      
+keyboard-setup.service                     enabled         enabled      
+kmod-static-nodes.service                  static          enabled      
+kmod.service                               static          enabled      
+l4t-rootfs-validation-config.service       enabled         enabled      
+lm-sensors.service                         enabled         enabled      
+man-db.service                             static          enabled      
+ModemManager.service                       enabled         enabled      
+modprobe@.service                          static          enabled      
+motd-news.service                          static          enabled      
+netplan-ovs-cleanup.service                enabled-runtime enabled      
+network-manager.service                    enabled         enabled      
+networkd-dispatcher.service                enabled         enabled      
+NetworkManager-dispatcher.service          enabled         enabled      
+NetworkManager-wait-online.service         disabled        enabled      
+NetworkManager.service                     enabled         enabled      
+nfs-common.service                         masked          enabled      
+nfs-config.service                         static          enabled      
+nfs-idmapd.service                         static          enabled      
+nfs-utils.service                          static          enabled      
+nv-l4t-bootloader-config.service           enabled         enabled      
+nv-l4t-usb-device-mode-runtime.service     linked          enabled      
+nv-l4t-usb-device-mode.service             enabled         enabled      
+nv-late-init.service                       enabled         enabled      
+nv-tee-supplicant.service                  enabled         enabled      
+nv.service                                 enabled         enabled      
+nv_nvsciipc_init.service                   enabled         enabled      
+nvargus-daemon.service                     enabled         enabled      
+nvfancontrol.service                       enabled         enabled      
+nvfb-early.service                         enabled         enabled      
+nvfb-udev.service                          enabled         enabled      
+nvfb.service                               enabled         enabled      
+nvgetty.service                            enabled         enabled      
+nvmemwarning.service                       enabled         enabled      
+nvphs.service                              enabled         enabled      
+nvpmodel.service                           enabled         enabled      
+nvpower.service                            enabled         enabled      
+nvramoopsconfig.service                    enabled         enabled      
+nvs-service.service                        enabled         enabled      
+nvweston.service                           enabled         enabled      
+nvwifibt.service                           static          enabled      
+nvzramconfig.service                       enabled         enabled      
+nxserver.service                           enabled         enabled      
+ondemand.service                           disabled        enabled      
+openvpn-client@.service                    disabled        enabled      
+openvpn-server@.service                    disabled        enabled      
+openvpn.service                            enabled         enabled      
+openvpn@.service                           disabled        enabled      
+packagekit-offline-update.service          static          enabled      
+packagekit.service                         static          enabled      
+plymouth-halt.service                      static          enabled      
+plymouth-kexec.service                     static          enabled      
+plymouth-log.service                       static          enabled      
+plymouth-poweroff.service                  static          enabled      
+plymouth-quit-wait.service                 static          enabled      
+plymouth-quit.service                      static          enabled      
+plymouth-read-write.service                static          enabled      
+plymouth-reboot.service                    static          enabled      
+plymouth-start.service                     static          enabled      
+plymouth-switch-root.service               static          enabled      
+plymouth.service                           static          enabled      
+polkit.service                             static          enabled      
+portmap.service                            enabled         enabled      
+pppd-dns.service                           enabled         enabled      
+procps.service                             static          enabled      
+pulseaudio-enable-autospawn.service        masked          enabled      
+quotaon.service                            static          enabled      
+rc-local.service                           enabled-runtime enabled      
+rc.service                                 masked          enabled      
+rcS.service                                masked          enabled      
+rescue.service                             static          enabled      
+resolvconf-pull-resolved.service           static          enabled      
+resolvconf.service                         enabled         enabled      
+rpc-gssd.service                           static          enabled      
+rpc-statd-notify.service                   disabled        enabled      
+rpc-statd.service                          disabled        enabled      
+rpc-svcgssd.service                        static          enabled      
+rpcbind.service                            enabled         enabled      
+rsync.service                              enabled         enabled      
+rsyslog.service                            enabled         enabled      
+rtkit-daemon.service                       disabled        enabled      
+saned.service                              masked          enabled      
+saned@.service                             indirect        enabled      
+serial-getty@.service                      indirect        enabled      
+setvtrgb.service                           enabled         enabled      
+snapd.aa-prompt-listener.service           enabled         enabled      
+snapd.apparmor.service                     enabled         enabled      
+snapd.autoimport.service                   enabled         enabled      
+snapd.core-fixup.service                   enabled         enabled      
+snapd.failure.service                      static          enabled      
+snapd.recovery-chooser-trigger.service     enabled         enabled      
+snapd.seeded.service                       enabled         enabled      
+snapd.service                              enabled         enabled      
+snapd.snap-repair.service                  static          enabled      
+snapd.system-shutdown.service              enabled         enabled      
+speech-dispatcher.service                  disabled        enabled      
+speech-dispatcherd.service                 disabled        enabled      
+spice-vdagent.service                      indirect        enabled      
+spice-vdagentd.service                     indirect        enabled      
+ssh.service                                enabled         enabled      
+ssh@.service                               static          enabled      
+sshd.service                               enabled         enabled      
+sudo.service                               masked          enabled      
+switcheroo-control.service                 enabled         enabled      
+sys_monitor.service                        enabled         enabled      
+syslog.service                             enabled         enabled      
+system-update-cleanup.service              static          enabled      
+systemd-ask-password-console.service       static          enabled      
+systemd-ask-password-plymouth.service      static          enabled      
+systemd-ask-password-wall.service          static          enabled      
+systemd-backlight@.service                 static          enabled      
+systemd-binfmt.service                     static          enabled      
+systemd-bless-boot.service                 static          enabled      
+systemd-boot-check-no-failures.service     disabled        enabled      
+systemd-boot-system-token.service          static          enabled      
+systemd-exit.service                       static          enabled      
+systemd-fsck-root.service                  enabled-runtime enabled      
+systemd-fsck@.service                      static          enabled      
+systemd-fsckd.service                      static          enabled      
+systemd-halt.service                       static          enabled      
+systemd-hibernate-resume@.service          static          enabled      
+systemd-hibernate.service                  static          enabled      
+systemd-hostnamed.service                  static          enabled      
+systemd-hwdb-update.service                static          enabled      
+systemd-hybrid-sleep.service               static          enabled      
+systemd-initctl.service                    static          enabled      
+systemd-journal-flush.service              static          enabled      
+systemd-journald.service                   static          enabled      
+systemd-journald@.service                  static          enabled      
+systemd-kexec.service                      static          enabled      
+systemd-localed.service                    static          enabled      
+systemd-logind.service                     static          enabled      
+systemd-machine-id-commit.service          static          enabled      
+systemd-modules-load.service               static          enabled      
+systemd-network-generator.service          disabled        enabled      
+systemd-networkd-wait-online.service       disabled        enabled      
+systemd-networkd.service                   disabled        enabled      
+systemd-poweroff.service                   static          enabled      
+systemd-pstore.service                     enabled         enabled      
+systemd-quotacheck.service                 static          enabled      
+systemd-random-seed.service                static          enabled      
+systemd-reboot.service                     static          enabled      
+systemd-remount-fs.service                 enabled-runtime enabled      
+systemd-resolved.service                   enabled         enabled      
+systemd-rfkill.service                     static          enabled      
+systemd-suspend-then-hibernate.service     static          enabled      
+systemd-suspend.service                    static          enabled      
+systemd-sysctl.service                     static          enabled      
+systemd-sysusers.service                   static          enabled      
+systemd-time-wait-sync.service             disabled        enabled      
+systemd-timedated.service                  static          enabled      
+systemd-timesyncd.service                  enabled         enabled      
+systemd-tmpfiles-clean.service             static          enabled      
+systemd-tmpfiles-setup-dev.service         static          enabled      
+systemd-tmpfiles-setup.service             static          enabled      
+systemd-udev-settle.service                static          enabled      
+systemd-udev-trigger.service               static          enabled      
+systemd-udevd.service                      static          enabled      
+systemd-update-utmp-runlevel.service       static          enabled      
+systemd-update-utmp.service                static          enabled      
+systemd-user-sessions.service              static          enabled      
+systemd-volatile-root.service              static          enabled      
+ua-reboot-cmds.service                     enabled         enabled      
+ua-timer.service                           static          enabled      
+ubuntu-advantage.service                   enabled         enabled      
+ubuntu-fan.service                         enabled         enabled      
+udev.service                               static          enabled      
+udisks2.service                            enabled         enabled      
+unitree-upgrade.service                    enabled         enabled      
+upower.service                             disabled        enabled      
+usb_modeswitch@.service                    static          enabled      
+usbmuxd.service                            static          enabled      
+user-runtime-dir@.service                  static          enabled      
+user@.service                              static          enabled      
+wacom-inputattach@.service                 static          enabled      
+whoopsie.service                           enabled         enabled      
+wpa_supplicant-nl80211@.service            disabled        enabled      
+wpa_supplicant-wired@.service              disabled        enabled      
+wpa_supplicant.service                     enabled         enabled      
+wpa_supplicant@.service                    disabled        enabled      
+x11-common.service                         masked          enabled      
+
+258 unit files listed.
