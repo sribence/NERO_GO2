@@ -1,0 +1,27 @@
+version: "3.8"
+
+# NERO_GO2 fejlesztői konténer — szeparált a robot natív rendszerétől.
+# Ld. docs/00-BIZTONSAGI-SZABALYOK.md
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nero_go2/dev:foxy-l4t-r35.3.1
+    container_name: nero_go2_dev
+    # Host network mode kell a CycloneDDS multicast discovery-hez
+    # (a DDS multicast alapból nem jut át a Docker bridge NAT-on).
+    # Ez CSAK hálózati névtér-megosztás — a fájlrendszert, a
+    # csomagkezelést, semmit nem oszt meg a hoszttal.
+    network_mode: host
+    environment:
+      - ROS_DOMAIN_ID=0
+      - CYCLONEDDS_URI=/workspace/cyclonedds.container.xml
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+    volumes:
+      - ./workspace:/workspace/src
+      - ./cyclonedds.container.xml:/workspace/cyclonedds.container.xml:ro
+    stdin_open: true
+    tty: true
+    restart: "no"

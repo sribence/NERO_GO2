@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  Helyesbített CycloneDDS config a NERO_GO2 fejlesztői konténerhez.
+
+  A natív, gyári config (~/cyclonedds_ws/cyclonedds.xml a Jetsonon)
+  "eth0" interfészt ír elő, de a tényleges interfész neve ezen a
+  gépen "eth10" (ld. docs/03-ros-stack.md és docs/09-dds-interfesz-eltapasztalas.md).
+  Ez a fájl a helyes interfésznévvel a konténerben él, a natív
+  fájlt NEM módosítja.
+-->
+<CycloneDDS xmlns="https://cdds.io/config" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd">
+    <Domain Id="any">
+        <General>
+            <Interfaces>
+                <NetworkInterface name="eth10" priority="default" multicast="default" />
+            </Interfaces>
+            <AllowMulticast>spdp</AllowMulticast>
+        </General>
+    </Domain>
+</CycloneDDS>

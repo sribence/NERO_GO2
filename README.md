@@ -22,7 +22,9 @@ Ez egy drága, nehezen pótolható konfigurációjú példány. A natív, gyári
 - [docs/06-webes-feluletek.md](docs/06-webes-feluletek.md) — mi érhető el böngészőből
 - [docs/07-internet-megosztas.md](docs/07-internet-megosztas.md) — hogyan adjunk (ideiglenesen) internetet a robotnak Windows laptopról
 - [docs/08-foxglove-terv.md](docs/08-foxglove-terv.md) — élő adatmegjelenítés terve (Foxglove Studio)
+- [docs/09-dds-interfesz-eltapasztalas.md](docs/09-dds-interfesz-eltapasztalas.md) — ismert hiba: a natív CycloneDDS config rossz interfészt (`eth0` vs `eth10`) ír elő
 - [docs/00-BIZTONSAGI-SZABALYOK.md](docs/00-BIZTONSAGI-SZABALYOK.md) — üzemeltetési alapszabályok
+- [docker/dev/](docker/dev/) — szeparált Docker fejlesztői környezet (ROS2 Foxy, L4T R35.3.1-illesztett image)
 
 ## Gyors infó
 
