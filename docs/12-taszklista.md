@@ -17,8 +17,8 @@ Jelmagyarázat: 🤖 = kell hozzá élő robot · 💻 = robot nélkül, laptopo
 - [ ] 🤖 `foxglove_bridge` build befejezése és tesztelése (`docker/foxglove_bridge/`)
 - [ ] 🤖 Foxglove Studio élő kapcsolat tesztelése (`foxglove/nero_go2_default.layout.json`)
 - [ ] 🤖 A [09-dds-interfesz-eltapasztalas.md](09-dds-interfesz-eltapasztalas.md) `eth0`/`eth10` hiba hatásának ellenőrzése — látszanak-e a `rt/...` topicok
-- [ ] 💻 `unitree_webrtc_connect` (MIT) áttekintése, licenc-ellenőrzés, fork/vendor-elés a `docker/webrtc_bridge/` alá
-- [ ] 🤖 `unitree_webrtc_connect` Docker-konténerbe téve, első élő kamera-frame teszt
+- [x] 💻 `unitree_webrtc_connect` (MIT) áttekintése, licenc-ellenőrzés, fork/vendor-elés a `docker/webrtc_bridge/` alá — 2026-08-31, helyi LLM-mel generálva+javítva, ld. [13-lokalis-llm-delegalas.md](13-lokalis-llm-delegalas.md)
+- [ ] 🤖 `webrtc_bridge` Docker-konténer élő tesztelése — a `RTC_TOPIC` kulcsnevek és a `subscribe()` API még nincs valós robotnak ellenőrizve
 - [ ] 🤖 LiDAR pontfelhő dekódolás tesztelése ugyanezen a csatornán
 - [ ] 🤖 Intel RealSense D435i fizikai csatlakozásának azonosítása (Jetson USB vs. mozgásvezérlő) + `librealsense`/`realsense-ros` Docker-konténerben tesztelve
 - [ ] 💻 Ezen a ponton dokumentálni: melyik szenzor melyik csatornán, milyen formátumban érhető el (referencia-táblázat a repóba)

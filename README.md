@@ -29,6 +29,8 @@ Ez egy drága, nehezen pótolható konfigurációjú példány. A natív, gyári
 - [docs/00-BIZTONSAGI-SZABALYOK.md](docs/00-BIZTONSAGI-SZABALYOK.md) — üzemeltetési alapszabályok
 - [docker/dev/](docker/dev/) — szeparált Docker fejlesztői környezet (ROS2 Foxy, L4T R35.3.1-illesztett image)
 - [docker/foxglove_bridge/](docker/foxglove_bridge/) — `foxglove_bridge` build forrásból (Foxy-hoz nincs kész csomag), folyamatban
+- [docker/webrtc_bridge/](docker/webrtc_bridge/) — kamera+LiDAR+telemetria a hivatalos WebRTC-protokollon, **nem tesztelve élőben**
+- [docs/13-lokalis-llm-delegalas.md](docs/13-lokalis-llm-delegalas.md) — hogyan generálódik a kód helyi Qwen2.5-Coder modellel, Claude-review-val
 - [foxglove/](foxglove/) — Foxglove Studio layout/config a robot élő adatainak megjelenítéséhez
 - [backups/](backups/) — konfig-pillanatképek + Docker image mentések
 

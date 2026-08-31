@@ -1,0 +1,18 @@
+version: "3.8"
+
+# NERO_GO2 WebRTC bridge — szeparált a robot natív rendszerétől.
+# Ld. ../../docs/00-BIZTONSAGI-SZABALYOK.md
+
+services:
+  webrtc_bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nero_go2/webrtc_bridge:latest
+    container_name: nero_go2_webrtc_bridge
+    network_mode: host
+    environment:
+      - UNITREE_ROBOT_IP=192.168.123.18
+      # - UNITREE_AES_128_KEY=  # csak firmware >= 1.1.15 esetén kell, ld. README
+    restart: "no"
+    # Flask port: 5001 (host network miatt nincs külön ports: mapping)
