@@ -24,6 +24,7 @@ Ez egy drága, nehezen pótolható konfigurációjú példány. A natív, gyári
 - [docs/08-foxglove-terv.md](docs/08-foxglove-terv.md) — élő adatmegjelenítés terve (Foxglove Studio)
 - [docs/09-dds-interfesz-eltapasztalas.md](docs/09-dds-interfesz-eltapasztalas.md) — ismert hiba: a natív CycloneDDS config rossz interfészt (`eth0` vs `eth10`) ír elő
 - [docs/10-munkamenet-naplo-2026-08-31.md](docs/10-munkamenet-naplo-2026-08-31.md) — mai munkamenet napló, nyitott TODO-k holnapra
+- [docs/11-oktatocsomag-terv.md](docs/11-oktatocsomag-terv.md) — nagy vízió: webes irányítás, objektumkövetés, navigáció, oktatási demó — meglévő nyílt projektekre építve
 - [docs/00-BIZTONSAGI-SZABALYOK.md](docs/00-BIZTONSAGI-SZABALYOK.md) — üzemeltetési alapszabályok
 - [docker/dev/](docker/dev/) — szeparált Docker fejlesztői környezet (ROS2 Foxy, L4T R35.3.1-illesztett image)
 - [docker/foxglove_bridge/](docker/foxglove_bridge/) — `foxglove_bridge` build forrásból (Foxy-hoz nincs kész csomag), folyamatban
