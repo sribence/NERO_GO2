@@ -1,7 +1,3 @@
 flask
 requests
-# unitree_sdk2py NEM sima PyPI-csomag - a go2_dashboard repóban vendorolva van,
-# forrás: https://github.com/legion1581/go2_python_sdk2 (Legion1581 fork).
-# Holnap eldöntendő: vendoreljük mi is (COPY a Dockerfile-ba), vagy pip install
-# közvetlenül git+https://github.com/legion1581/go2_python_sdk2-ból.
-# Ld. docker/web_dashboard/README.md
+cyclonedds==0.10.2

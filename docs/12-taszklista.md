@@ -27,8 +27,9 @@ Jelmagyarázat: 🤖 = kell hozzá élő robot · 💻 = robot nélkül, laptopo
 
 - [x] 💻 `go2_dashboard` (Flask) áttekintése, licenc-ellenőrzés, fork a `docker/web_dashboard/` alá — 2026-08-31, helyi LLM vázlat + jelentős kézi átírás (ld. [13-lokalis-llm-delegalas.md](13-lokalis-llm-delegalas.md))
 - [x] 💻 NERO_GO2 saját dizájn/branding a felületre (diákbarát, látványos) — sötét téma, magyar UI szöveg, arm/disarm biztonsági kapcsoló
-- [ ] 🤖 `unitree_sdk2py` függőség megoldása (nem sima PyPI-csomag, ld. `docker/web_dashboard/README.md`)
-- [ ] 🤖 Alapfunkciók élő tesztelése: mód-váltó gombok (állj/ülj/damping — **óvatosan, ld. biztonsági szabályok**), élő kamera-panel
+- [x] 🤖 `unitree_sdk2py` függőség megoldva — 2026-09-01, hivatalos `unitreerobotics/unitree_sdk2_python` + natúr CycloneDDS-build újrahasznosítva (ld. `docker/web_dashboard/README.md`)
+- [x] 🤖 DDS-kapcsolat + telemetria élő tesztelve — 2026-09-01, MŰKÖDIK ("DDS/SportClient ready", élő voltage/current/temp adat)
+- [ ] 🤖 Mód-váltó gombok/joystick élő tesztelése (állj/ülj/damping — **óvatosan, ld. biztonsági szabályok**)
 - [ ] 🤖 LiDAR 3D-nézet beágyazása a webes felületbe (Foxglove-elvek átvéve, vagy három.js-alapú saját megjelenítő)
 - [ ] 🤖 RealSense mélységkép-panel hozzáadása
 - [ ] 💻 Docker Compose-ba szervezve az összes eddigi konténer (dev, foxglove_bridge, webrtc_bridge, web_dashboard) egy stack-ként

@@ -39,7 +39,6 @@ logger = logging.getLogger("nero_go2.web_dashboard")
 app = Flask(__name__)
 
 WEBRTC_BRIDGE_URL = os.environ.get("WEBRTC_BRIDGE_URL", "http://localhost:5001")
-UNITREE_ROBOT_SN = os.environ.get("UNITREE_ROBOT_SN", "")
 
 MOVE_SPEED = 0.5
 TURN_SPEED = 1.0
@@ -100,38 +99,40 @@ threading.Thread(target=_watchdog, daemon=True).start()
 def _init_sdk():
     """Connect to the robot's native DDS channel. Runs in a background thread
     so a robot that isn't reachable yet doesn't prevent the web server (and
-    the camera/telemetry proxy routes, which don't need this) from starting."""
+    the camera/telemetry proxy routes, which don't need this) from starting.
+
+    2026-09-01: API verified against the official unitreerobotics/
+    unitree_sdk2_python source (examples + IDL dataclasses via `gh api`) —
+    the previous version used several invented names (`IDLDataClass`,
+    `DDSChannelFactoryInitialize`, `create_standard_sdk`, `sdk.create_robot`,
+    `communicator.ChannelSubscriber`) that don't exist in the real package.
+    """
     global sdk_ready, sport_client
     try:
-        from unitree_sdk2py.idl.idl_dataclass import IDLDataClass
-        from unitree_sdk2py.core.dds.channel import DDSChannelFactoryInitialize
-        from unitree_sdk2py.sdk.sdk import create_standard_sdk
+        from unitree_sdk2py.core.channel import ChannelSubscriber, ChannelFactoryInitialize
+        from unitree_sdk2py.idl.unitree_go.msg.dds_ import LowState_, SportModeState_
         from unitree_sdk2py.go2.sport.sport_client import SportClient
 
-        idl_data_class = IDLDataClass()
-        LowState_ = idl_data_class.get_data_class("LowState_")
-        SportModeState_ = idl_data_class.get_data_class("SportModeState_")
-
-        def low_state_handler(msg):
+        def low_state_handler(msg: LowState_):
             with _lock:
                 dog_data["voltage"] = round(msg.power_v, 2)
                 dog_data["current"] = round(msg.power_a, 2)
                 dog_data["avg_temp"] = round((msg.temperature_ntc1 + msg.temperature_ntc2) / 2, 1)
 
-        def sport_state_handler(msg):
+        def sport_state_handler(msg: SportModeState_):
             with _lock:
                 dog_data["velocity_x"] = round(msg.velocity[0], 2)
                 dog_data["velocity_y"] = round(msg.velocity[1], 2)
                 dog_data["velocity_z"] = round(msg.velocity[2], 2)
                 dog_data["yaw_speed"] = round(msg.yaw_speed, 2)
 
-        sdk = create_standard_sdk("NeroGo2Dashboard")
-        communicator = DDSChannelFactoryInitialize(domainId=0)
-        robot = sdk.create_robot(communicator, serialNumber=UNITREE_ROBOT_SN)
+        # domainId=0 (matches the robot's own rt/... topics), network
+        # interface name is the Jetson's real NIC (ld. docs/01-halozat.md).
+        ChannelFactoryInitialize(0, os.environ.get("DDS_NETWORK_INTERFACE", "eth10"))
 
-        low_state_sub = communicator.ChannelSubscriber("rt/lowstate", LowState_)
+        low_state_sub = ChannelSubscriber("rt/lowstate", LowState_)
         low_state_sub.Init(low_state_handler, 10)
-        sport_state_sub = communicator.ChannelSubscriber("rt/sportmodestate", SportModeState_)
+        sport_state_sub = ChannelSubscriber("rt/sportmodestate", SportModeState_)
         sport_state_sub.Init(sport_state_handler, 10)
 
         client = SportClient()

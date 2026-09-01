@@ -1,0 +1,3 @@
+# Gépspecifikus build-előfeltétel a web_dashboard-hoz — a robot natúr
+# rendszeréről másolt CycloneDDS-build, ld. docker/web_dashboard/README.md
+docker/web_dashboard/cyclonedds_home/
