@@ -14,9 +14,9 @@ Jelmagyarázat: 🤖 = kell hozzá élő robot · 💻 = robot nélkül, laptopo
 
 ## Fázis 1 — érzékelés/kommunikáció alapréteg
 
-- [ ] 🤖 `foxglove_bridge` build befejezése és tesztelése (`docker/foxglove_bridge/`)
-- [ ] 🤖 Foxglove Studio élő kapcsolat tesztelése (`foxglove/nero_go2_default.layout.json`)
-- [ ] 🤖 A [09-dds-interfesz-eltapasztalas.md](09-dds-interfesz-eltapasztalas.md) `eth0`/`eth10` hiba hatásának ellenőrzése — látszanak-e a `rt/...` topicok
+- [x] 🤖 `rosbridge` (a `foxglove_bridge` helyett) build befejezve — 2026-09-01, ld. [docker/rosbridge/README.md](../docker/rosbridge/README.md)
+- [ ] 🤖 **BLOKKOLVA:** élő kapcsolat tesztelése — `network_mode: host`-on minden ROS2/rclpy-folyamat SIGSEGV-be fut valódi `eth10` NIC-en (bridge hálózaton viszont nem éri el a robot DDS-multicast forgalmát) — ld. részletek [docker/rosbridge/README.md](../docker/rosbridge/README.md) "KRITIKUS, MEGOLDATLAN HIBA" szakasz
+- [ ] 🤖 A [09-dds-interfesz-eltapasztalas.md](09-dds-interfesz-eltapasztalas.md) `eth0`/`eth10` hiba hatásának ellenőrzése — látszanak-e a `rt/...` topicok (a fenti SIGSEGV-hiba miatt még nem tesztelhető)
 - [x] 💻 `unitree_webrtc_connect` (MIT) áttekintése, licenc-ellenőrzés, fork/vendor-elés a `docker/webrtc_bridge/` alá — 2026-08-31, helyi LLM-mel generálva+javítva, ld. [13-lokalis-llm-delegalas.md](13-lokalis-llm-delegalas.md)
 - [ ] 🤖 `webrtc_bridge` Docker-konténer élő tesztelése — a `RTC_TOPIC` kulcsnevek és a `subscribe()` API még nincs valós robotnak ellenőrizve
 - [ ] 🤖 LiDAR pontfelhő dekódolás tesztelése ugyanezen a csatornán
