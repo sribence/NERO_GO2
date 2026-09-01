@@ -18,8 +18,8 @@ Jelmagyarázat: 🤖 = kell hozzá élő robot · 💻 = robot nélkül, laptopo
 - [ ] 🤖 **BLOKKOLVA:** élő kapcsolat tesztelése — `network_mode: host`-on minden ROS2/rclpy-folyamat SIGSEGV-be fut valódi `eth10` NIC-en (bridge hálózaton viszont nem éri el a robot DDS-multicast forgalmát) — ld. részletek [docker/rosbridge/README.md](../docker/rosbridge/README.md) "KRITIKUS, MEGOLDATLAN HIBA" szakasz
 - [ ] 🤖 A [09-dds-interfesz-eltapasztalas.md](09-dds-interfesz-eltapasztalas.md) `eth0`/`eth10` hiba hatásának ellenőrzése — látszanak-e a `rt/...` topicok (a fenti SIGSEGV-hiba miatt még nem tesztelhető)
 - [x] 💻 `unitree_webrtc_connect` (MIT) áttekintése, licenc-ellenőrzés, fork/vendor-elés a `docker/webrtc_bridge/` alá — 2026-08-31, helyi LLM-mel generálva+javítva, ld. [13-lokalis-llm-delegalas.md](13-lokalis-llm-delegalas.md)
-- [ ] 🤖 `webrtc_bridge` Docker-konténer élő tesztelése — a `RTC_TOPIC` kulcsnevek és a `subscribe()` API még nincs valós robotnak ellenőrizve
-- [ ] 🤖 LiDAR pontfelhő dekódolás tesztelése ugyanezen a csatornán
+- [x] 🤖 `webrtc_bridge` Docker-konténer élő tesztelése — 2026-09-01, kamera+telemetria MŰKÖDIK, 3 API-hiba javítva (ld. [docker/webrtc_bridge/README.md](../docker/webrtc_bridge/README.md))
+- [ ] 🤖 LiDAR pontfelhő (`/lidar`) — a szenzor forog és adatot termel, de a `voxel_map_compressed` topic nem küld semmit; gyanú: damping mód/állvány blokkolja — újratesztelendő normál állapotban
 - [ ] 🤖 Intel RealSense D435i fizikai csatlakozásának azonosítása (Jetson USB vs. mozgásvezérlő) + `librealsense`/`realsense-ros` Docker-konténerben tesztelve
 - [ ] 💻 Ezen a ponton dokumentálni: melyik szenzor melyik csatornán, milyen formátumban érhető el (referencia-táblázat a repóba)
 
