@@ -11,6 +11,7 @@ Jelmagyarázat: 🤖 = kell hozzá élő robot · 💻 = robot nélkül, laptopo
 - [x] 🤖 Ideiglenes internet a robotnak
 - [x] 🤖 ROS2 Foxy Jetson dev image-ek lehúzva + helyi mentés
 - [x] 💻 `foxglove_bridge` Dockerfile + GPG-hiba javítás (build nincs végigfuttatva)
+- [x] 💻 `mock_robot` — robot nélküli fejlesztői stack (`docker/mock_robot/`), 2026-09-03, élőben tesztelve böngészőben
 
 ## Fázis 1 — érzékelés/kommunikáció alapréteg
 

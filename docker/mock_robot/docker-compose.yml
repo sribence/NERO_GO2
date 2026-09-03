@@ -1,0 +1,34 @@
+version: "3.8"
+
+# Robot nélküli fejlesztői stack: mock_robot + web_dashboard (MOCK_SDK=1).
+# Bármelyik gépen fut (nem kell hozzá network_mode: host, valódi NIC, sem
+# a robot maga) — ld. README.md.
+#
+# Indítás: docker compose up --build
+# Elérés:  http://localhost:5002/
+
+services:
+  mock_robot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nero_go2/mock_robot:latest
+    container_name: nero_go2_mock_robot
+    ports:
+      - "5001:5001"
+    restart: "no"
+
+  web_dashboard_mock:
+    build:
+      context: ../web_dashboard
+      dockerfile: Dockerfile.mock
+    image: nero_go2/web_dashboard:mock
+    container_name: nero_go2_web_dashboard_mock
+    environment:
+      - WEBRTC_BRIDGE_URL=http://mock_robot:5001
+      - MOCK_SDK=1
+    ports:
+      - "5002:5002"
+    depends_on:
+      - mock_robot
+    restart: "no"

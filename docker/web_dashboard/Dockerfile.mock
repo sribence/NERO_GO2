@@ -1,0 +1,18 @@
+# web_dashboard — MOCK_SDK=1 változat, robot/CycloneDDS nélkül futtatható
+# bármelyik gépen (ld. ../mock_robot/README.md). A rendes Dockerfile a
+# natúr rendszer CycloneDDS-buildjét igényli build contextként, ami csak
+# a robot Jetson dokkján érhető el — ez a verzió szándékosan nem tartalmazza
+# az unitree_sdk2py-t, mert MOCK_SDK=1 esetén app.py sosem importálja.
+
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY requirements_mock.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+COPY templates/ templates/
+
+EXPOSE 5002
+
+CMD ["python", "app.py"]

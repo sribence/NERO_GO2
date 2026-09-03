@@ -26,6 +26,7 @@ frontend, several scoping bugs, and an invented SDK method) — ld.
 
 import json
 import logging
+import math
 import os
 import threading
 import time
@@ -96,6 +97,59 @@ def _watchdog():
 threading.Thread(target=_watchdog, daemon=True).start()
 
 
+class _FakeSportClient:
+    """Stand-in for unitree_sdk2py's SportClient when MOCK_SDK=1 — logs what
+    would have been sent instead of touching real hardware. Method names
+    match the real SportClient 1:1 (verified against the official source,
+    ld. docstring below), so app.py's _actions()/update_joystick() need no
+    branching at all."""
+
+    def _log(self, name, *args):
+        logger.info("[MOCK SportClient] %s%s", name, args)
+
+    def Move(self, vx, vy, vyaw):
+        self._log("Move", vx, vy, vyaw)
+
+    def RecoveryStand(self):
+        self._log("RecoveryStand")
+
+    def StandDown(self):
+        self._log("StandDown")
+
+    def Hello(self):
+        self._log("Hello")
+
+    def Heart(self):
+        self._log("Heart")
+
+    def Sit(self):
+        self._log("Sit")
+
+
+def _init_mock_sdk():
+    """MOCK_SDK=1 path — no unitree_sdk2py, no DDS, no real robot. Fills
+    dog_data with plausible oscillating values on a timer so the dashboard's
+    telemetry panels have something to show while developing the UI away
+    from the robot (ld. docs/00-BIZTONSAGI-SZABALYOK.md — the robot is
+    expensive/fragile/shared, so UI work should not require robot access)."""
+    global sdk_ready, sport_client
+    sport_client = _FakeSportClient()
+    sdk_ready = True
+    logger.info("MOCK SportClient ready (MOCK_SDK=1, no real robot involved)")
+    t0 = time.time()
+    while True:
+        t = time.time() - t0
+        with _lock:
+            dog_data["voltage"] = round(28.5 - 0.05 * math.sin(t * 0.2), 2)
+            dog_data["current"] = round(1.0 + 0.3 * math.sin(t), 2)
+            dog_data["avg_temp"] = round(35 + 2 * math.sin(t * 0.1), 1)
+            dog_data["velocity_x"] = round(0.2 * math.sin(t * 0.5), 2)
+            dog_data["velocity_y"] = 0.0
+            dog_data["velocity_z"] = 0.0
+            dog_data["yaw_speed"] = round(0.1 * math.sin(t * 0.3), 3)
+        time.sleep(1)
+
+
 def _init_sdk():
     """Connect to the robot's native DDS channel. Runs in a background thread
     so a robot that isn't reachable yet doesn't prevent the web server (and
@@ -146,7 +200,10 @@ def _init_sdk():
         logger.exception("failed to initialise unitree_sdk2py DDS connection - movement/telemetry disabled")
 
 
-threading.Thread(target=_init_sdk, daemon=True).start()
+threading.Thread(
+    target=_init_mock_sdk if os.environ.get("MOCK_SDK") == "1" else _init_sdk,
+    daemon=True,
+).start()
 
 
 def _actions():
