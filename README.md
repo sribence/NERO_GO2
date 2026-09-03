@@ -1,10 +1,15 @@
 # NERO_GO2
 
-**Neumann Robotics — Unitree Go2 EDU dokumentáció**
+**Neumann Robotics — robot-dokumentáció**
 
-Ez a repó a NeonPC/Neumann Robotics tulajdonában lévő **Unitree Go2 EDU** négylábú robot teljes körű, magyar nyelvű dokumentációja: hálózati felépítés, fedélzeti szoftverstack, ROS-ökoszisztéma, natív DDS-interfész, elérhető webes felületek, és a biztonságos üzemeltetés szabályai.
+Ez a repó a NeonPC/Neumann Robotics robotjainak teljes körű, magyar nyelvű dokumentációja. A név a **Unitree Go2 EDU** négylábúról maradt, de a repó azóta a második robotunkat, a **Xavier Pickerbot Mini**-t is befogadta — lásd [xavier-pickerbot/](xavier-pickerbot/).
 
-A cél egy folyamatosan bővülő, nyílt tudásbázis a robotról — amit bárki (csapattag, jövőbeli fejlesztő, vagy a nyílt közösség) használhat referenciaként, mielőtt hozzányúlna a rendszerhez.
+A cél egy folyamatosan bővülő, nyílt tudásbázis a robotokról — amit bárki (csapattag, jövőbeli fejlesztő, vagy a nyílt közösség) használhat referenciaként, mielőtt hozzányúlna a rendszerhez.
+
+## A repóban dokumentált robotok
+
+- **Unitree Go2 EDU** — négylábú, ez a repó fő tartalma (lásd lent)
+- **[Xavier Pickerbot Mini](xavier-pickerbot/)** — mecanum-alvázas karos robot, Jetson Xavier NX-szel — hozzáférés, hardver, saját projektek (élő irányítópult + Pickerbot Akadémia oktatási platform)
 
 ## ⚠️ Mielőtt bármit csinálnál a robottal — olvasd el ezt
 
@@ -12,7 +17,7 @@ A cél egy folyamatosan bővülő, nyílt tudásbázis a robotról — amit bár
 
 Ez egy drága, nehezen pótolható konfigurációjú példány. A natív, gyári rendszer **érintetlen** kell maradjon — minden új funkció kizárólag Docker-konténerben, szeparáltan mehet fel rá.
 
-## Tartalomjegyzék
+## Tartalomjegyzék — Go2
 
 - [docs/01-hálózat.md](docs/01-halozat.md) — IP-címek, portok, hogyan köss rá egy laptopot
 - [docs/02-rendszer-attekintes.md](docs/02-rendszer-attekintes.md) — Jetson platform, OS, JetPack verzió

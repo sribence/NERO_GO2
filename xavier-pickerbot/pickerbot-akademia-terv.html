@@ -1,0 +1,1491 @@
+<title>Pickerbot Akadémia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<style>
+:root{
+  --ink:#16191d;
+  --ink-2:#3d454d;
+  --muted:#6b747c;
+  --faint:#9aa2a9;
+  --ground:#eceeec;
+  --paper:#ffffff;
+  --panel:#f6f7f5;
+  --rule:#d2d6d3;
+  --rule-strong:#b3b9b5;
+  --amber:#c26520;
+  --amber-soft:#f4e3d4;
+  --teal:#2c6473;
+  --teal-soft:#dde9ec;
+  --ok:#39705c;
+  --warn:#9a7420;
+  --crit:#a2453a;
+  --crit-soft:#f6e0dc;
+  --sheet:#f4f5f2;
+  --sheet-rule:#cfd4cd;
+  --shadow:0 1px 2px rgba(22,25,29,.06), 0 8px 24px -16px rgba(22,25,29,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e9ece9;
+    --ink-2:#c3c9c6;
+    --muted:#949c9d;
+    --faint:#6e7679;
+    --ground:#14171a;
+    --paper:#1b1f22;
+    --panel:#20252a;
+    --rule:#2e353b;
+    --rule-strong:#414a51;
+    --amber:#e08a44;
+    --amber-soft:#3a2a1c;
+    --teal:#78b3c2;
+    --teal-soft:#1d2c31;
+    --ok:#6dae93;
+    --warn:#cfa451;
+    --crit:#dd7d6f;
+    --crit-soft:#33201d;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e9ece9;
+  --ink-2:#c3c9c6;
+  --muted:#949c9d;
+  --faint:#6e7679;
+  --ground:#14171a;
+  --paper:#1b1f22;
+  --panel:#20252a;
+  --rule:#2e353b;
+  --rule-strong:#414a51;
+  --amber:#e08a44;
+  --amber-soft:#3a2a1c;
+  --teal:#78b3c2;
+  --teal-soft:#1d2c31;
+  --ok:#6dae93;
+  --warn:#cfa451;
+  --crit:#dd7d6f;
+  --crit-soft:#33201d;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  font-size:16px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:"Archivo", ui-sans-serif, system-ui, sans-serif; text-wrap:balance; margin:0;}
+p{margin:0}
+a{color:var(--teal)}
+
+.mono,code,.stamp,.eyebrow,.chip{font-family:"JetBrains Mono", ui-monospace, monospace}
+
+.eyebrow{
+  font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--amber);
+}
+
+/* ---------- shell ---------- */
+.shell{max-width:1220px; margin:0 auto; padding:0 20px 96px;}
+.layout{display:grid; grid-template-columns:236px minmax(0,1fr); gap:44px; align-items:start;}
+@media (max-width:960px){ .layout{grid-template-columns:1fr; gap:24px} }
+
+/* ---------- masthead ---------- */
+.mast{
+  border-bottom:1px solid var(--rule);
+  padding:52px 0 30px;
+  margin-bottom:38px;
+  position:relative;
+}
+.mast::after{
+  content:""; position:absolute; left:0; bottom:-1px; width:96px; height:3px; background:var(--amber);
+}
+.mast h1{font-size:clamp(34px,5.4vw,58px); font-weight:700; letter-spacing:-.022em; line-height:1.02; margin:10px 0 14px;}
+.mast .lede{font-size:clamp(16px,1.9vw,19px); color:var(--ink-2); max-width:62ch;}
+.factstrip{
+  display:flex; flex-wrap:wrap; gap:0; margin-top:26px;
+  border:1px solid var(--rule); border-radius:3px; overflow:hidden; background:var(--paper);
+}
+.fact{flex:1 1 160px; padding:12px 16px; border-right:1px solid var(--rule); min-width:0;}
+.fact:last-child{border-right:0}
+.fact dt{font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin-bottom:3px;}
+.fact dd{margin:0; font-size:14px; font-weight:600; color:var(--ink);}
+
+/* ---------- side nav ---------- */
+nav.rail{position:sticky; top:20px;}
+@media (max-width:960px){
+  nav.rail{position:static; border:1px solid var(--rule); border-radius:3px; background:var(--paper); padding:12px;}
+}
+.rail-title{font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); margin:0 0 10px 12px;}
+.rail ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px;}
+@media (max-width:960px){ .rail ol{flex-direction:row; flex-wrap:wrap; gap:6px} }
+.rail a{
+  display:block; padding:6px 12px; font-size:13.5px; color:var(--muted); text-decoration:none;
+  border-left:2px solid transparent; line-height:1.4;
+}
+.rail a:hover{color:var(--ink); border-left-color:var(--rule-strong); background:var(--panel);}
+.rail a .n{font-family:"JetBrains Mono",monospace; font-size:10.5px; color:var(--faint); margin-right:7px;}
+@media (max-width:960px){
+  .rail a{border-left:0; border:1px solid var(--rule); border-radius:2px; padding:4px 9px; font-size:12.5px}
+}
+
+/* ---------- sections ---------- */
+section{margin-bottom:64px; scroll-margin-top:20px;}
+section > h2{
+  font-size:clamp(22px,3vw,30px); font-weight:700; letter-spacing:-.015em; margin:8px 0 6px;
+}
+.sec-note{color:var(--muted); max-width:70ch; margin-bottom:26px !important;}
+h3{font-size:19px; font-weight:600; letter-spacing:-.008em; margin:34px 0 10px;}
+h4{font-size:13px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); margin:20px 0 8px;}
+section p + p{margin-top:12px}
+.prose{max-width:72ch}
+.prose p + p{margin-top:12px}
+
+/* ---------- cards / callouts ---------- */
+.card{
+  background:var(--paper); border:1px solid var(--rule); border-radius:3px;
+  padding:20px 22px; box-shadow:var(--shadow); position:relative;
+}
+.callout{
+  border:1px solid var(--rule); border-left:3px solid var(--teal); background:var(--panel);
+  padding:14px 18px; border-radius:2px; margin:18px 0;
+}
+.callout.key{border-left-color:var(--amber); background:var(--amber-soft);}
+.callout.warnbox{border-left-color:var(--crit); background:var(--crit-soft);}
+.callout .lbl{
+  font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--muted); display:block; margin-bottom:5px;
+}
+.callout.key .lbl{color:var(--amber)}
+.callout.warnbox .lbl{color:var(--crit)}
+.callout p{font-size:15px}
+
+/* ---------- diagram sheet ---------- */
+figure.sheet{
+  margin:26px 0; background:var(--sheet); border:1px solid var(--sheet-rule); border-radius:3px;
+  padding:8px 8px 0; position:relative; overflow:hidden;
+}
+figure.sheet .inner{overflow-x:auto; padding:16px 8px 4px;}
+figure.sheet pre.mermaid{margin:0; background:transparent; min-width:min-content;}
+figure.sheet figcaption{
+  border-top:1px solid var(--sheet-rule); margin:10px -8px 0; padding:8px 14px;
+  font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+  color:#6b747c; display:flex; gap:10px; align-items:baseline;
+}
+figure.sheet figcaption b{color:#c26520; font-weight:700; letter-spacing:.13em;}
+figure.sheet figcaption span{text-transform:none; letter-spacing:0; font-size:12px; color:#4a5157;}
+
+/* ---------- lists ---------- */
+ul.tight, ol.tight{margin:10px 0; padding-left:20px;}
+ul.tight li, ol.tight li{margin-bottom:6px; padding-left:2px;}
+ul.tight li::marker{color:var(--amber)}
+
+/* param grid */
+ul.params{list-style:none; margin:10px 0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:2px 20px;}
+ul.params li{display:flex; gap:9px; align-items:baseline; padding:4px 0; border-bottom:1px dotted var(--rule); font-size:14px;}
+ul.params code{
+  font-size:12px; font-weight:500; color:var(--teal); background:var(--teal-soft);
+  padding:1px 6px; border-radius:2px; white-space:nowrap; flex:none;
+}
+ul.params span{color:var(--muted); line-height:1.45;}
+
+code{font-size:13px; background:var(--panel); border:1px solid var(--rule); border-radius:2px; padding:1px 5px;}
+pre{
+  background:var(--panel); border:1px solid var(--rule); border-radius:3px;
+  padding:14px 16px; overflow-x:auto; font-family:"JetBrains Mono",monospace; font-size:12.5px; line-height:1.6;
+  margin:14px 0; color:var(--ink-2);
+}
+pre code{background:none; border:0; padding:0; font-size:inherit;}
+
+/* ---------- level cards ---------- */
+article.lvl{margin-bottom:26px; padding:0; overflow:hidden;}
+article.lvl > *:not(.lvl-head){margin-left:24px; margin-right:24px;}
+article.lvl > *:last-child{margin-bottom:22px;}
+.lvl-head{
+  display:flex; gap:18px; align-items:flex-start;
+  padding:20px 24px; background:var(--panel); border-bottom:1px solid var(--rule);
+  margin:0 !important;
+}
+.stamp{
+  flex:none; font-size:13px; font-weight:700; letter-spacing:.06em;
+  color:var(--paper); background:var(--ink); padding:5px 10px; border-radius:2px;
+  margin-top:2px;
+}
+:root[data-theme="dark"] .stamp{color:var(--ground); background:var(--amber);}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .stamp{color:var(--ground); background:var(--amber);}
+}
+.lvl-head h3{margin:0 0 3px; font-size:21px;}
+.lvl-head .goal{color:var(--muted); font-size:15px; line-height:1.5;}
+article.lvl h4:first-of-type{margin-top:20px;}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto; margin:16px 0; border:1px solid var(--rule); border-radius:3px; background:var(--paper);}
+table{border-collapse:collapse; width:100%; font-size:14px; min-width:520px;}
+th,td{text-align:left; padding:9px 14px; border-bottom:1px solid var(--rule); vertical-align:top;}
+th{
+  font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--muted); font-weight:700; background:var(--panel); white-space:nowrap;
+}
+tr:last-child td{border-bottom:0}
+td code{white-space:nowrap}
+</style>
+
+<div class="shell">
+
+<header class="mast">
+  <span class="eyebrow">Oktatási robotika-stack · tervdokumentum · 2026-08-25</span>
+  <h1>Pickerbot Akadémia</h1>
+  <p class="lede">Lépcsőzetes küldetéssorozat, amiben egyetemista hallgatók nem ROS-node-okat írnak, hanem egy valódi robot képességrétegeit hangolják, tesztelik és komponálják — a kerék-kinematikától a kamerával megtalált tárgy megfogásáig.</p>
+  <dl class="factstrip">
+    <div class="fact"><dt>Platform</dt><dd>Jetson Xavier NX · ROS Noetic</dd></div>
+    <div class="fact"><dt>Szintek</dt><dd>10 képességlépcső</dd></div>
+    <div class="fact"><dt>Célközönség</dt><dd>Egyetemi hallgatók</dd></div>
+    <div class="fact"><dt>Skálázás</dt><dd>1 profi robot → Pi-flotta</dd></div>
+  </dl>
+</header>
+
+<div class="layout">
+
+<nav class="rail">
+  <p class="rail-title">Tartalom</p>
+  <ol>
+    <li><a href="#elv"><span class="n">00</span>Alapelv</a></li>
+    <li><a href="#arch"><span class="n">01</span>Rendszerarchitektúra</a></li>
+    <li><a href="#modul"><span class="n">02</span>Skill-modul minta</a></li>
+    <li><a href="#sim"><span class="n">03</span>Sim-first munkafolyamat</a></li>
+    <li><a href="#letra"><span class="n">04</span>A tanulási létra</a></li>
+    <li><a href="#szintek"><span class="n">05</span>Szintek részletesen</a></li>
+    <li><a href="#biztonsag"><span class="n">06</span>Biztonsági réteg</a></li>
+    <li><a href="#meres"><span class="n">07</span>Mérés és pontozás</a></li>
+    <li><a href="#flotta"><span class="n">08</span>Flotta-skálázás</a></li>
+    <li><a href="#stack"><span class="n">09</span>Technológiai stack</a></li>
+    <li><a href="#fazisok"><span class="n">10</span>Fázisok</a></li>
+    <li><a href="#nyitott"><span class="n">11</span>Nyitott kérdések</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section id="elv">
+  <span class="eyebrow">00 — Alapelv</span>
+  <h2>Mi építjük a stacket, ők hangolják</h2>
+  <p class="sec-note">A pedagógiai tét: úgy kell mély robotikai fogalmakat átadni, hogy közben senkinek ne kelljen C++ ROS-package-et írni és fordítani.</p>
+
+  <div class="prose">
+    <p>A megoldás az, hogy <b>minden szinthez mi adunk egy működő, de szándékosan „nyers" implementációt</b> — helyes struktúrával, de kalibrálatlan, hangolatlan paraméterekkel. A hallgató dolga nem a kód megírása, hanem hogy <b>mérjen, értsen és állítson</b>: felismerje, melyik paraméter mit ront el, tesztekkel bizonyítsa, hogy jobb lett, és a végén egy dokumentált, hangolt konfigurációval álljon elő.</p>
+    <p>Ez pontosan az, amit egy mérnök csinál valódi robottal. És mérhető: a robot vagy megcsinálja a feladatot, vagy nem.</p>
+  </div>
+
+  <div class="callout key">
+    <span class="lbl">A három szint, amin a hallgató dolgozik</span>
+    <p><b>Hangolás</b> — paraméterek állítása élő visszajelzés mellett. &nbsp;·&nbsp; <b>Mérés</b> — teszt futtatása, ground truth összevetése, korrekció. &nbsp;·&nbsp; <b>Komponálás</b> — a felszabadított képességekből viselkedésfa építése.</p>
+  </div>
+
+  <h3>Amit a hallgató a félév végére kap</h3>
+  <ul class="tight">
+    <li><b>Saját, hangolt robotkonfiguráció</b> — verziózott JSON, ami szintről szintre nőtt. Ez a projekt tényleges terméke.</li>
+    <li><b>Saját térkép és küldetései</b> — az általa feltérképezett szoba, rajta az általa lerakott pontsorozat.</li>
+    <li><b>Saját betanított objektum-modell</b> — általa gyűjtött és címkézett adathalmazból.</li>
+    <li><b>Viselkedésfa</b>, ami az összes fenti képességet egy küldetéssé fűzi.</li>
+    <li><b>Futásnaplók</b> — minden mérés és futás visszajátszható, exportálható jegyzőkönyvbe.</li>
+  </ul>
+</section>
+
+<section id="arch">
+  <span class="eyebrow">01 — Rendszerarchitektúra</span>
+  <h2>Négy réteg, egy kifelé menő kapcsolat</h2>
+  <p class="sec-note">A böngésző soha nem beszél közvetlenül a ROS-szal. Közé kerül egy fedélzeti ügynök, ami szűkíti a felületet, betartatja a biztonsági szabályokat, és elrejti, hogy alatta ROS 1 vagy ROS 2 fut.</p>
+
+  <figure class="sheet">
+    <div class="inner">
+<pre class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'primaryColor':'#e9ebe7','primaryTextColor':'#16191d','primaryBorderColor':'#9aa0a6','lineColor':'#7a828a','fontFamily':'JetBrains Mono, ui-monospace, monospace','fontSize':'12px'}}}%%
+flowchart TB
+  subgraph B["BÖNGÉSZŐ — hallgató"]
+    UI["Skill-panelek<br/>(auto-generált vezérlők)"]
+    MAP["Térkép- és küldetés-tervező"]
+    VIZ["Élő nézetek<br/>2D scan · 3D pontfelhő · videó"]
+    BT["Viselkedésfa-szerkesztő"]
+  end
+
+  subgraph G["GATEWAY — szerver"]
+    AUTH["Azonosítás, csoportok"]
+    QUEUE["Foglalás és sor<br/>ki irányít most"]
+    STORE["Konfigok, térképek,<br/>küldetések, pontszámok"]
+    ARCH["Futásnaplók (bag)<br/>visszajátszás"]
+    SIMH["Szimulátor-példányok<br/>hallgatónként"]
+  end
+
+  subgraph A["ROBOT AGENT — fedélzeten"]
+    API["Szűkített parancs-API"]
+    SAFE["Biztonsági felügyelő"]
+    PARM["Paraméter-kezelő<br/>+ teszt-futtató"]
+    TELE["Telemetria-adó<br/>(ritkítva, tömörítve)"]
+  end
+
+  subgraph R["ROS-STACK"]
+    DRV["Driverek<br/>base · lidar · kamera · kar"]
+    SKL["Skill-node-ok L01–L10"]
+    NAV["SLAM · lokalizáció · tervezés"]
+  end
+
+  B <-->|"WSS / WebRTC"| G
+  G <-->|"egyetlen kifelé nyitott<br/>tartós kapcsolat"| A
+  A <--> R
+
+  style B fill:#dde9ec,stroke:#2c6473
+  style G fill:#f4e3d4,stroke:#c26520
+  style A fill:#e9ebe7,stroke:#16191d,stroke-width:2px
+  style R fill:#f4f5f2,stroke:#9aa0a6
+</pre>
+    </div>
+    <figcaption><b>Ábra 1</b> <span>A négyrétegű architektúra. A vastagon szedett Agent-réteg az egyetlen, ami ROS-t lát.</span></figcaption>
+  </figure>
+
+  <h3>Miért nem elég a rosbridge önmagában</h3>
+  <p class="prose">A jelenlegi dashboard közvetlenül rosbridge-hez kapcsolódik. Ez fejlesztéshez tökéletes, oktatási éles üzemre viszont alkalmatlan, öt konkrét okból:</p>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Hiány</th><th>Következmény oktatási helyzetben</th><th>Megoldás az Agent-rétegben</th></tr></thead>
+    <tbody>
+      <tr><td>Nincs azonosítás</td><td>Bárki, aki eléri a portot, vezérli a robotot</td><td>A Gateway ad tokent, az Agent csak azt fogadja el</td></tr>
+      <tr><td>Teljes ROS-felület nyitva</td><td>Egy hallgató kilőhet node-okat, felülírhat rendszer-paramétert</td><td>Fehérlistás, sematizált parancskészlet</td></tr>
+      <tr><td>Nincs biztonsági veto</td><td>Végtelen <code>cmd_vel</code> = robot a falban</td><td>Fedélzeti felügyelő, hálózattól függetlenül</td></tr>
+      <tr><td>Nincs egyidejűség-kezelés</td><td>Két hallgató egyszerre küld ellentétes parancsot</td><td>Egy aktív vezérlő-session, a többi néző</td></tr>
+      <tr><td>ROS-verzióhoz kötött</td><td>A Pi-flotta ROS 2-t fut majd, a protokoll széttörne</td><td>Az Agent fordít, a Gateway-protokoll verziófüggetlen</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout">
+    <span class="lbl">Miért kifelé nyit a robot</span>
+    <p>Az Agent <b>maga építi ki</b> a kapcsolatot a Gateway felé, nem fordítva. Így nincs port-forward, nincs statikus publikus IP, és a robot bárhol működik, ahol van kifelé menő internet — kollégiumi wifin, laborban, konferencián. Ugyanez a minta viszi majd a Pi-flottát is.</p>
+  </div>
+
+  <h3>Adatcsatornák</h3>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Adat</th><th>Ütem</th><th>Átvitel</th><th>Megjegyzés</th></tr></thead>
+    <tbody>
+      <tr><td>Parancsok, paraméterek</td><td>eseményvezérelt</td><td>WebSocket, JSON</td><td>nyugtázott, sorszámozott</td></tr>
+      <tr><td>Póz, odometria, állapot</td><td>10–20 Hz</td><td>WebSocket, bináris</td><td>kis csomag, gyakran</td></tr>
+      <tr><td>LiDAR scan</td><td>5–10 Hz</td><td>WebSocket, bináris</td><td>float32 tömb, nem JSON-szám</td></tr>
+      <tr><td>Videó</td><td>15–30 fps</td><td>WebRTC (H.264)</td><td>a Jetsonon hardveres kódoló van; MJPEG csak fallback</td></tr>
+      <tr><td>Pontfelhő</td><td>2–5 Hz</td><td>WebSocket, ritkított</td><td>voxel-szűrés a roboton, nem a böngészőben</td></tr>
+      <tr><td>Térkép</td><td>ritkán</td><td>HTTP, PNG + YAML</td><td>csak változáskor</td></tr>
+      <tr><td>Futásnapló</td><td>utólag</td><td>HTTP, bag</td><td>a Gateway archiválja</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout warnbox">
+    <span class="lbl">Tanulság a jelenlegi dashboardból</span>
+    <p>A rosbridge a bájttömb-mezőket Base64-stringként küldi, nem JSON szám-tömbként — ezen már elvéreztünk egyszer a pontfelhőnél. Az Agent-réteg ezt kiváltja: strukturált bináris keretek mennek, definiált sémával, így ez a hibaosztály eltűnik.</p>
+  </div>
+</section>
+
+<section id="modul">
+  <span class="eyebrow">02 — Skill-modul minta</span>
+  <h2>Egy sablon, tíz szint</h2>
+  <p class="sec-note">Tíz szinthez tíz egyedi kezelőfelületet megírni és karbantartani nem fenntartható. Ehelyett minden szint egy <b>manifesztet</b> ad ki magáról, és a felület ebből generálódik.</p>
+
+  <div class="prose">
+    <p>A manifeszt leírja, milyen paraméterei vannak a modulnak (típus, tartomány, mértékegység, magyarázat), milyen teszteket tud futtatni, milyen élő adatot mutat, és mi a teljesítési feltétele. A böngésző ebből rakja össze a csúszkákat, kapcsolókat, teszt-gombokat és a diagramokat — nulla szintspecifikus frontend-kód.</p>
+    <p>Ez az architektúra gerince. Ha később új képességet akarunk (mondjuk lépcsőérzékelést vagy hangvezérlést), az egy új manifeszt plusz egy ROS-node — felület nem kell hozzá.</p>
+  </div>
+
+  <figure class="sheet">
+    <div class="inner">
+<pre class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'primaryColor':'#e9ebe7','primaryTextColor':'#16191d','primaryBorderColor':'#9aa0a6','lineColor':'#7a828a','fontFamily':'JetBrains Mono, ui-monospace, monospace','fontSize':'12px'}}}%%
+flowchart LR
+  MAN["skill.yaml<br/>manifeszt"]
+
+  MAN --> P["paraméter-séma"]
+  MAN --> T["teszt-definíciók"]
+  MAN --> V["nézet-igények"]
+  MAN --> GT["teljesítési feltétel"]
+
+  P --> UI1["csúszkák, kapcsolók,<br/>számmezők"]
+  T --> UI2["teszt-gombok<br/>+ eredménytábla"]
+  V --> UI3["élő panelek"]
+  GT --> UI4["haladásjelző,<br/>szint feloldása"]
+
+  P --> ROS1["ROS param<br/>+ élő újratöltés"]
+  T --> ROS2["teszt-action<br/>szerver"]
+  GT --> SC["automata<br/>kiértékelés naplóból"]
+
+  UI1 & UI2 & UI3 & UI4 --> BROWSER["generált<br/>szint-panel"]
+  ROS1 & ROS2 --> NODE["skill-node<br/>a roboton"]
+
+  style MAN fill:#f4e3d4,stroke:#c26520,stroke-width:2px
+  style BROWSER fill:#dde9ec,stroke:#2c6473
+  style NODE fill:#e9ebe7,stroke:#16191d
+</pre>
+    </div>
+    <figcaption><b>Ábra 2</b> <span>Egyetlen manifesztből generálódik a felület és konfigurálódik a robotoldali node.</span></figcaption>
+  </figure>
+
+  <h3>Manifeszt-vázlat</h3>
+  <pre><code>id: odometry_calibration
+level: 2
+title: "Odometria és kalibráció"
+requires: [wheel_encoders, imu]        # HAL-képességek — enélkül a szint rejtve marad
+unlocks: [pose_estimate]
+
+params:
+  - key: ticks_per_rev
+    type: int      range: [100, 20000]   default: 1560
+    hint: "Egy teljes kerékfordulat enkóder-impulzusai áttétellel együtt"
+  - key: wheel_radius_eff
+    type: float    range: [0.02, 0.10]   default: 0.0375   unit: m
+    hint: "Terhelés alatti GÖRDÜLÉSI sugár — kisebb, mint a névleges"
+  - key: k_x
+    type: float    range: [0.80, 1.20]   default: 1.0
+    hint: "Hosszirányú skálakorrekció"
+  - key: k_y
+    type: float    range: [0.60, 1.30]   default: 1.0
+    hint: "Oldalirányú korrekció — mecanumnál jóval 1.0 alatt lesz"
+
+tests:
+  - id: straight_5m
+    title: "Egyenes 5 méter"
+    inputs:  [distance_cmd]
+    ground_truth: [lidar_wall_delta, manual_tape]
+    outputs: [measured_distance, lateral_drift, yaw_drift]
+  - id: umbmark_square
+    title: "UMBmark négyzet (CW + CCW)"
+    inputs:  [side_length, repeats]
+    outputs: [end_error_cw, end_error_ccw, systematic_error]
+
+gate:
+  all:
+    - "abs(straight_5m.measured - 5.0) / 5.0 &lt; 0.02"
+    - "abs(spin_10x.yaw_error_deg) &lt; 5.0"</code></pre>
+
+  <div class="callout key">
+    <span class="lbl">Miért ez a legfontosabb döntés a tervben</span>
+    <p>A <code>requires</code> mező az, ami később a Raspberry-flottát működővé teszi: a mélységkamerát igénylő szintek egyszerűen nem jelennek meg olyan roboton, amin nincs. Ugyanaz a kódbázis, ugyanaz a felület, más képességkészlet.</p>
+  </div>
+
+  <h3>Paraméterek élettartama</h3>
+  <ul class="tight">
+    <li><b>Alapérték</b> — amit mi adunk: strukturálisan helyes, de kalibrálatlan.</li>
+    <li><b>Hallgatói érték</b> — verziózva, minden mentés időbélyeggel és opcionális jegyzettel („miért állítottam?").</li>
+    <li><b>Visszaállítás</b> — bármikor vissza az alapra vagy egy korábbi mentésre, mert a kísérletezés a lényeg.</li>
+    <li><b>Öröklődés</b> — a felsőbb szint automatikusan a hallgató alsóbb szintű, hangolt értékeit használja. Rossz L02-es kalibráció rontja az L05-ös navigációt — és ez pedagógiailag szándékos.</li>
+  </ul>
+</section>
+
+<section id="sim">
+  <span class="eyebrow">03 — Sim-first munkafolyamat</span>
+  <h2>Egy robot, harminc hallgató</h2>
+  <p class="sec-note">A szűk keresztmetszet nem szoftveres: egyetlen fizikai robot van. A megoldás nem a sorban állás optimalizálása, hanem az, hogy a munka nagy része ne is igényelje a valódi robotot.</p>
+
+  <div class="prose">
+    <p>Minden hallgató kap egy saját szimulált robotot, ami <b>ugyanazt a felületet, ugyanazokat a paramétereket és ugyanazokat a teszteket</b> használja, mint az igazi. Ott fejleszt, hangol, ront el dolgokat, indít újra. Amikor kész, lefoglal egy idősávot, és a konfigurációja változtatás nélkül átmegy a fizikai robotra.</p>
+    <p>A szimulátor nem a roboton fut, hanem a Gateway-szerveren, hallgatónkénti konténerben. A Jetson így felszabadul a valódi futtatásra.</p>
+  </div>
+
+  <figure class="sheet">
+    <div class="inner">
+<pre class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'primaryColor':'#e9ebe7','primaryTextColor':'#16191d','primaryBorderColor':'#9aa0a6','lineColor':'#7a828a','fontFamily':'JetBrains Mono, ui-monospace, monospace','fontSize':'12px'}}}%%
+flowchart TB
+  S["Hallgató<br/>böngészőben"] --> SW{"Cél kiválasztása"}
+
+  SW -->|"SZIMULÁCIÓ<br/>bármikor, korlátlan"| SIM["Saját konténer<br/>Gazebo + ugyanaz a ROS-stack"]
+  SW -->|"VALÓDI ROBOT<br/>foglalt idősávban"| Q["Sorkezelő"]
+
+  SIM --> CFG["Hangolt konfiguráció<br/>(verziózott JSON)"]
+  CFG --> Q
+
+  Q --> ACT{"Ő az aktív<br/>vezérlő?"}
+  ACT -->|igen| REAL["Fizikai robot<br/>+ élő videó"]
+  ACT -->|nem| SPEC["Nézői mód<br/>látja a futást és a paramétereket"]
+
+  REAL --> LOG["Futásnapló<br/>+ automata pontozás"]
+  SIM --> LOG
+  LOG --> CFG
+
+  style SIM fill:#dde9ec,stroke:#2c6473
+  style REAL fill:#f4e3d4,stroke:#c26520,stroke-width:2px
+  style CFG fill:#e9ebe7,stroke:#16191d
+</pre>
+    </div>
+    <figcaption><b>Ábra 3</b> <span>Ugyanaz a konfiguráció fut szimulációban és a valódi roboton — csak a cél változik.</span></figcaption>
+  </figure>
+
+  <h3>Mit lehet és mit nem lehet szimulálni</h3>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Szint</th><th>Szimulációban</th><th>Miért kell mégis a valódi robot</th></tr></thead>
+    <tbody>
+      <tr><td>L01 kinematika</td><td>Teljes értékű, sőt <b>jobb</b> — kerékszintű vezérlés korlátlanul</td><td>Csak élményként</td></tr>
+      <tr><td>L02 odometria</td><td>Részben — a csúszás modellezhető, de nem hű</td><td>A mecanum csúszása az igazi tanulság, ez csak élesben látszik</td></tr>
+      <tr><td>L03 pontvezérlés</td><td>Teljes értékű</td><td>Nem szükséges</td></tr>
+      <tr><td>L04 scan matching</td><td>Jó — zaj hozzáadható</td><td>Valós LiDAR-zaj és tükröződő felületek</td></tr>
+      <tr><td>L05 SLAM + navigáció</td><td>Jó</td><td>Valós szoba geometriája, mozgó emberek</td></tr>
+      <tr><td>L06 klasszikus CV</td><td>Gyenge — a szimulált fény hazugság</td><td>Fényviszonyok változása a fő tanulság</td></tr>
+      <tr><td>L07 objektumtanítás</td><td>Nem — valódi képek kellenek</td><td>Az adatgyűjtés maga a feladat</td></tr>
+      <tr><td>L08 vizuális szervó</td><td>Részben</td><td>Valós detekciós zaj</td></tr>
+      <tr><td>L09 3D + kar</td><td>Kinematika igen, megfogás nem</td><td>Súrlódás, megcsúszás, kalibrációs hiba</td></tr>
+      <tr><td>L10 teljes küldetés</td><td>Próbához igen</td><td>A záró futás mindenképp élesben</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout">
+    <span class="lbl">Következmény a tananyagra</span>
+    <p>Az alsó öt szint gyakorlatilag korlátlanul gyakorolható, a felső öt viszont robotidőt igényel. Érdemes a félévet úgy ütemezni, hogy L01–L05 az első felében, otthon is haladható legyen, és a laboridő a felső szintekre koncentrálódjon.</p>
+  </div>
+</section>
+
+<section id="letra">
+  <span class="eyebrow">04 — A tanulási létra</span>
+  <h2>Minden szint a következő motivációja</h2>
+  <p class="sec-note">A sorrend nem önkényes: minden lépcső azzal ér véget, hogy a hallgató beleütközik egy korlátba, amit az adott eszközzel nem tud megoldani — és pont ez indokolja a következő szintet.</p>
+
+  <figure class="sheet">
+    <div class="inner">
+<pre class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'primaryColor':'#e9ebe7','primaryTextColor':'#16191d','primaryBorderColor':'#9aa0a6','lineColor':'#7a828a','fontFamily':'JetBrains Mono, ui-monospace, monospace','fontSize':'12px'}}}%%
+flowchart TB
+  L1["L01 · Mecanum kinematika<br/><i>négy kerékből három szabadságfok</i>"]
+  L2["L02 · Odometria és kalibráció<br/><i>tickből méter</i>"]
+  L3["L03 · Pontvezérlés fiktív térben<br/><i>zárt szabályozási kör</i>"]
+  L4["L04 · LiDAR és scan matching<br/><i>külső érzékelésből mozgás</i>"]
+  L5["L05 · SLAM és navigáció<br/><i>saját térkép, saját küldetés</i>"]
+  L6["L06 · Klasszikus képfeldolgozás<br/><i>képpontból vezérlőjel</i>"]
+  L7["L07 · Objektumfelismerés<br/><i>saját adat, saját modell</i>"]
+  L8["L08 · Szemantikus navigáció<br/><i>durva odaérés, finom rátalálás</i>"]
+  L9["L09 · 3D érzékelés és kar<br/><i>pixelből megfogási póz</i>"]
+  L10["L10 · Teljes küldetés<br/><i>viselkedésfa mindenből</i>"]
+
+  L1 -->|"a kerék nem mondja meg,<br/>mennyit ment"| L2
+  L2 -->|"a hiba halmozódik,<br/>bármit állítok"| L3
+  L3 -->|"négy kör után<br/>elveszek a térben"| L4
+  L4 -->|"hosszú folyosón<br/>az illesztés is elcsúszik"| L5
+  L5 -->|"a térkép nem tudja,<br/>MI van a szobában"| L6
+  L6 -->|"más fénynél<br/>összeomlik a küszöb"| L7
+  L7 -->|"felismerem, de<br/>nem tudok odamenni"| L8
+  L8 -->|"odaérek, de<br/>nem tudom megfogni"| L9
+  L9 -->|"tudok mindent,<br/>össze kell fűzni"| L10
+
+  style L1 fill:#dde9ec,stroke:#2c6473
+  style L2 fill:#dde9ec,stroke:#2c6473
+  style L3 fill:#dde9ec,stroke:#2c6473
+  style L4 fill:#e9ebe7,stroke:#16191d
+  style L5 fill:#e9ebe7,stroke:#16191d
+  style L6 fill:#f4e3d4,stroke:#c26520
+  style L7 fill:#f4e3d4,stroke:#c26520
+  style L8 fill:#f4e3d4,stroke:#c26520
+  style L9 fill:#f6e0dc,stroke:#a2453a
+  style L10 fill:#f6e0dc,stroke:#a2453a,stroke-width:2px
+</pre>
+    </div>
+    <figcaption><b>Ábra 4</b> <span>A nyilakon nem a technika, hanem a hallgató kudarcélménye szerepel — ez viszi tovább.</span></figcaption>
+  </figure>
+
+  <div class="callout key">
+    <span class="lbl">Tervezési elv</span>
+    <p>Minden szint záró tesztje szándékosan tartalmaz egy olyan esetet, amit <b>nem lehet teljesíteni</b> az adott szint eszközeivel. Nem büntetés — ez a következő szint reklámja. A felületen ki is írjuk: „ezt a hibát innentől nem lehet paraméterrel javítani".</p>
+  </div>
+</section>
+
+<section id="szintek">
+  <span class="eyebrow">05 — Szintek részletesen</span>
+  <h2>Tíz lépcsőfok</h2>
+  <p class="sec-note">Minden szintnél ugyanaz a szerkezet: mit ért meg, mit állít, mit mér, mikor teljesített, mi van mögötte ROS-oldalon, és hol fog elbukni.</p>
+
+  <article class="card lvl">
+    <div class="lvl-head">
+      <span class="stamp">L01</span>
+      <div>
+        <h3>Mecanum kinematika</h3>
+        <p class="goal">Négy független kerékből hogyan lesz három szabadságfok, és miért számít a görgők 45°-os iránya.</p>
+      </div>
+    </div>
+
+    <h4>Mit ért meg</h4>
+    <p class="prose">Hogy a mecanum kerék nem „oldalra hajt", hanem a görgőkön ébredő erők <i>eredője</i> mozgatja oldalra a járművet. Hogy a négy kerékből három szabadságfok jön ki, tehát egy szabadságfok redundáns — és ez a redundancia lesz később az oldalirányú csúszás forrása. Hogy az átlós mozgásnál két kerék tényleg szabadon fut.</p>
+
+    <h4>Amit a hallgató állít</h4>
+    <ul class="params">
+      <li><code>wheel_index_map</code><span>melyik motor melyik sarok</span></li>
+      <li><code>wheel_sign[4]</code><span>forgásirány-előjelek, ±1</span></li>
+      <li><code>wheel_radius</code><span>névleges kerékátmérő</span></li>
+      <li><code>lx_plus_ly</code><span>fél nyomtáv + fél tengelytáv</span></li>
+      <li><code>deadzone_pwm</code><span>az a parancsérték, ami alatt meg sem mozdul</span></li>
+      <li><code>max_wheel_rads</code><span>kerék max szögsebesség</span></li>
+    </ul>
+
+    <h4>Tesztek</h4>
+    <ul class="tight">
+      <li><b>Kerékazonosítás</b> — egyesével megpörget mindegyiket, a hallgató beírja, melyik sarok mozdult. Innen jön az index-térkép.</li>
+      <li><b>Hat alapmozgás</b> — előre, hátra, balra, jobbra oldalazás, pörgés mindkét irányba. Mindegyiknél a helyes előjelkombináció kiderítése.</li>
+      <li><b>Átlós teszt</b> — 45°-os mozgás, ahol két átellenes kerék áll. Ha mind a négy forog, rossz az előjel.</li>
+      <li><b>Mátrix-kvíz</b> — a hallgató megadja a négy sor együtthatóit, a rendszer szimulálva megmutatja, merre menne.</li>
+    </ul>
+
+    <pre><code>ω_BE = (1/r)·( vx − vy − (lx+ly)·ωz )
+ω_JE = (1/r)·( vx + vy + (lx+ly)·ωz )
+ω_BH = (1/r)·( vx + vy − (lx+ly)·ωz )
+ω_JH = (1/r)·( vx − vy + (lx+ly)·ωz )</code></pre>
+
+    <div class="callout"><span class="lbl">Teljesítési feltétel</span>
+      <p>Mind a hat alapmozgás helyes irányba indul, és az átlós tesztnél a két passzív kerék enkódere ténylegesen szabadon fut (nem hajtott).</p></div>
+
+    <h4>ROS-oldal</h4>
+    <p class="prose"><code>mecanum_mixer_node</code>: <code>geometry_msgs/Twist</code> bemenet, saját <code>WheelSpeeds</code> üzenet kimenet a base-driver felé. A mátrix együtthatói futásidőben cserélhetők, node-újraindítás nélkül.</p>
+
+    <div class="callout warnbox"><span class="lbl">Buktató — ellenőrizni kell</span>
+      <p>A Wheeltec alváz firmware-e valószínűleg <b>maga végzi a keverést</b>, és csak <code>vx, vy, ωz</code>-t fogad. Ha így van, valódi kerékszintű vezérlés csak szimulációban lehetséges — a fizikai roboton a szint „ellenőrző" módban fut: a hallgató megadja a mátrixot, a rendszer kiszámolja, mi lenne belőle, és összeveti a helyessel. A Pi-flottán ez a korlát nem lesz meg, mert ott nyers motorvezérlő van.</p></div>
+  </article>
+
+  <article class="card lvl">
+    <div class="lvl-head">
+      <span class="stamp">L02</span>
+      <div>
+        <h3>Odometria és kalibráció</h3>
+        <p class="goal">Enkóder-impulzusból méter — és annak felfedezése, hogy a névleges adatok hazudnak.</p>
+      </div>
+    </div>
+
+    <h4>Mit ért meg</h4>
+    <p class="prose">Hogy a katalógusban szereplő kerékátmérő nem az, amivel a robot valójában gurul: terhelés alatt a gumi lapul, a gördülési sugár kisebb. Hogy a hiba nem véletlenszerű, hanem <b>szisztematikus</b>, tehát mérhető és korrigálható. És hogy a mecanum oldalirányú odometriája alapvetően rosszabb a hosszirányúnál, mert a görgők csúsznak.</p>
+
+    <h4>Amit a hallgató állít</h4>
+    <ul class="params">
+      <li><code>ticks_per_rev</code><span>impulzus/fordulat áttétellel</span></li>
+      <li><code>wheel_radius_eff</code><span>terhelés alatti gördülési sugár</span></li>
+      <li><code>lx_plus_ly_eff</code><span>effektív geometria a forduláshoz</span></li>
+      <li><code>k_x</code><span>hosszirányú skálakorrekció</span></li>
+      <li><code>k_y</code><span>oldalirányú korrekció (jóval 1 alatt lesz)</span></li>
+      <li><code>k_theta</code><span>szögkorrekció</span></li>
+      <li><code>imu_yaw_weight</code><span>enkóder- és gyro-yaw fúziós súlya</span></li>
+    </ul>
+
+    <h4>Tesztek</h4>
+    <ul class="tight">
+      <li><b>Egyenes 1 m és 5 m</b> — parancsolt vs mért út, plusz az oldalirányú elcsúszás.</li>
+      <li><b>Oldalazás 1 m</b> — itt lesz a legnagyobb hiba, gyakran 15–25%. Ez a szint legfontosabb aha-élménye.</li>
+      <li><b>Helyben 10 × 360°</b> — a szöghiba felnagyítva, mert tízszeresen halmozódik.</li>
+      <li><b>UMBmark négyzet</b> — 2×2 m-es zárt négyzet az óramutató szerint és ellene, mindkét irányban mérve a záróhibát. A két irány hibájának különbségéből <b>szétválasztható</b> a kerékátmérő-hiba és a nyomtáv-hiba. Ez a klasszikus Borenstein–Feng módszer, egyetemi szinten pont jó falat.</li>
+    </ul>
+
+    <h4>Honnan tudjuk, mennyit ment valójában</h4>
+    <div class="tw">
+    <table>
+      <thead><tr><th>Módszer</th><th>Pontosság</th><th>Költség</th><th>Pedagógiai haszon</th></tr></thead>
+      <tbody>
+        <tr><td><b>LiDAR fal-távolság delta</b></td><td>±1–2 cm</td><td>nulla, meglévő szenzor</td><td>Kiváló: két szenzor keresztellenőrzése, ez maga is tananyag</td></tr>
+        <tr><td>Mérőszalag, kézi beírás</td><td>±0,5 cm</td><td>nulla</td><td>Jó: fizikai kapcsolat a méréssel</td></tr>
+        <tr><td>Plafonra szerelt ArUco-referee kamera</td><td>±0,5 cm, abszolút</td><td>egy webkamera + nyomtatott marker</td><td>Az egyetlen igazán megbízható abszolút referencia</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="callout"><span class="lbl">Ajánlás a laborhoz</span>
+      <p>A LiDAR-delta és a mérőszalag már most, hardverbővítés nélkül elég a szint elindításához. A plafonkamerás referee viszont pár tízezer forintból megépíthető, és onnantól minden szint automatikusan, objektíven pontozható — hosszú távon ez a legjobb megtérülésű beruházás a laborban.</p></div>
+
+    <div class="callout"><span class="lbl">Teljesítési feltétel</span>
+      <p>5 méteres egyenesen a hiba 2% alatt, tíz teljes fordulat után a szöghiba 5° alatt, és az UMBmark-ból kiszámolt szisztematikus hiba dokumentálva.</p></div>
+
+    <h4>ROS-oldal</h4>
+    <p class="prose"><code>odom_calib_node</code>, ami a <b>nyers enkóder-tickekből</b> számolja újra az odometriát a hallgató paramétereivel — nem a gyári <code>/odom</code>-ot skálázza. Mellette teszt-futtató action szerver, ami vezérli a mozgást és rögzíti a mérést.</p>
+
+    <div class="callout warnbox"><span class="lbl">Buktató — ellenőrizni kell</span>
+      <p>Ehhez nyers tickek kellenek. Ha a Wheeltec csak integrált <code>/odom</code>-ot ad vissza, a szint gyengébb változatban működik (skálafaktor-korrekció a kész odometrián), ami még mindig tanulságos, de a tickből-méter lánc nem látszik. Ez az egyik legfontosabb dolog, amit a roboton meg kell néznünk.</p></div>
+  </article>
+
+  <article class="card lvl">
+    <div class="lvl-head">
+      <span class="stamp">L03</span>
+      <div>
+        <h3>Pontvezérlés fiktív térben</h3>
+        <p class="goal">Zárt szabályozási kör építése — és a drift felfedezése.</p>
+      </div>
+    </div>
+
+    <h4>Mit ért meg</h4>
+    <p class="prose">Hogy a „menj a pontra" nem egy parancs, hanem egy folyamatosan futó visszacsatolt kör. Hogy a holonóm robot nem kényszerül fordulni ahhoz, hogy oldalra menjen — de attól még lehet, hogy érdemes. Hogy a túl nagy erősítés oszcillációt szül, a túl kicsi lassú beállást. És a szint végén: hogy a hiba <b>halmozódik</b>, és ezen semmilyen paraméter nem segít.</p>
+
+    <h4>Amit a hallgató állít</h4>
+    <ul class="params">
+      <li><code>kp_lin</code>, <code>kd_lin</code><span>lineáris szabályozó tagjai</span></li>
+      <li><code>kp_ang</code>, <code>kd_ang</code><span>szögszabályozó tagjai</span></li>
+      <li><code>max_v</code>, <code>max_a</code><span>sebesség- és gyorsuláskorlát</span></li>
+      <li><code>goal_tol_pos</code>, <code>goal_tol_yaw</code><span>mikor tekintjük elértnek</span></li>
+      <li><code>strategy</code><span>holonóm egyenes vs fordulj–menj–fordulj</span></li>
+      <li><code>decel_profile</code><span>trapéz vagy S-görbe lassítás</span></li>
+      <li><code>waypoint_blend</code><span>megáll minden pontnál, vagy átível rajtuk</span></li>
+    </ul>
+
+    <h4>Tesztek</h4>
+    <ul class="tight">
+      <li><b>Egy pont</b> — beállási idő és túllövés mérése, a klasszikus szabályozástechnikai gyakorlat.</li>
+      <li><b>Pontsor</b> — a hallgató kattintással rak le pontokat egy üres rácson, a robot végigjárja. <i>Ez ugyanaz a felületelem, ami L05-ben a valódi térképen fog futni.</i></li>
+      <li><b>Zárt négyzet ×4</b> — visszatér-e a kiindulópontba. Nem fog.</li>
+      <li><b>Csillagminta</b> — sok irányváltás, a szabályozó minőségének stressztesztje.</li>
+    </ul>
+
+    <div class="callout"><span class="lbl">Teljesítési feltétel</span>
+      <p>Egy pontnál 5% alatti túllövés és stabil beállás. A négyzettesztnél nincs küszöb — a feladat az, hogy a hallgató <b>dokumentálja</b>, mekkora a záróhiba, és megindokolja, miért nem tudja paraméterállítással kivezetni.</p></div>
+
+    <h4>ROS-oldal</h4>
+    <p class="prose"><code>waypoint_follower</code> actionlib-szerverként (<code>FollowWaypoints</code>), alatta holonóm vektor-szabályozó vagy pure-pursuit. Kizárólag az <code>odom</code> frame-ben dolgozik — nincs térkép, nincs lokalizáció.</p>
+
+    <div class="callout key"><span class="lbl">Ez a szint a híd</span>
+      <p>Innen már kirajzolódik a felhasználói élmény, amit eredetileg elképzeltünk: <b>a hallgató pontokat rak le, és a robot végigjárja őket.</b> Két szinttel később ugyanez fog történni, csak valódi, önmaga által feltérképezett szobában.</p></div>
+  </article>
+
+  <article class="card lvl">
+    <div class="lvl-head">
+      <span class="stamp">L04</span>
+      <div>
+        <h3>2D LiDAR és scan matching</h3>
+        <p class="goal">Hogyan lesz külső érzékelésből mozgásbecslés — kézzel, majd algoritmussal.</p>
+      </div>
+    </div>
+
+    <h4>Mit ért meg</h4>
+    <p class="prose">Hogy ha két egymást átfedő lézer-pásztázást egymásra illesztünk, az illesztés eltolása és elforgatása <i>maga</i> a robot elmozdulása. Hogy ehhez nem kell kerék, nem kell enkóder. Hogy a jó kezdeti becslés (például az odometria) drámaian gyorsítja a konvergenciát. És hogy ha a környezetben nincs elég geometriai jellegzetesség, ez a módszer is elbukik.</p>
+
+    <h4>A szint négy fázisa</h4>
+    <ol class="tight">
+      <li><b>Élő nézet</b> — a pásztázás megjelenítése, a robot mozgatása közben. Először csak megfigyelés.</li>
+      <li><b>Kézi illesztés</b> — egy referencia-pásztázás befagyasztása, elmozdulás, majd a hallgató <b>csúszkákkal</b> tolja és forgatja egymásra a két felhőt. Ez a kulcsgyakorlat: kézzel megcsinálja azt, amit utána az algoritmus fog.</li>
+      <li><b>Automata illesztés</b> — ICP futtatása, majd összevetés a kézi eredménnyel és az odometriával.</li>
+      <li><b>Inkrementális térkép</b> — az illesztett pásztázások halmozása foglaltsági rácsba, élőben látva, ahogy nő a térkép.</li>
+    </ol>
+
+    <h4>Amit a hallgató állít</h4>
+    <ul class="params">
+      <li><code>max_correspondence_dist</code><span>meddig keres párt egy ponthoz</span></li>
+      <li><code>max_iterations</code><span>iterációs korlát</span></li>
+      <li><code>outlier_reject_ratio</code><span>a legrosszabb párok eldobása</span></li>
+      <li><code>point_decimation</code><span>minden N-edik pont — sebesség vs pontosság</span></li>
+      <li><code>use_odom_prior</code><span>kapcsoló: kezdeti becslés az odometriából</span></li>
+      <li><code>keyframe_dist</code>, <code>keyframe_angle</code><span>mekkora elmozdulás után kerül új pásztázás a térképbe</span></li>
+      <li><code>log_odds_hit</code>, <code>log_odds_miss</code><span>foglaltsági rács bizonyosság-kezelése</span></li>
+    </ul>
+
+    <h4>Tesztek</h4>
+    <ul class="tight">
+      <li><b>Kézi vs automata</b> — mennyivel pontosabb az ICP, mint a szem.</li>
+      <li><b>Prior be/ki</b> — ugyanaz a mozgás az odometriai kezdőbecsléssel és anélkül: iterációszám és sikeresség összevetése.</li>
+      <li><b>Sarok vs folyosó</b> — sarokban két merőleges fal jól rögzíti a megoldást; hosszú, üres folyosón a hossztengely mentén az illesztés <b>degenerált</b>, és elcsúszik. Ezt szándékosan megmutatjuk.</li>
+      <li><b>Trajektória-összevetés</b> — 10 méteres úton az odometriai és a scan-matching becslés együtt kirajzolva.</li>
+    </ul>
+
+    <div class="callout"><span class="lbl">Teljesítési feltétel</span>
+      <p>10 méteres útvonalon a scan-matching trajektória végponthibája az odometriai hiba felénél kisebb, és a hallgató megmagyarázza, miért romlik el a folyosós eset.</p></div>
+
+    <h4>ROS-oldal</h4>
+    <p class="prose">Alapnak <code>laser_scan_matcher</code> (canonical scan matcher) vagy <code>rf2o_laser_odometry</code>, mellé saját foglaltsági-rács akkumulátor. A böngészőoldali kézi illesztéshez a nyers pásztázások binárisan mennek át, és a transzformációt a kliens alkalmazza — így a csúszka azonnal reagál, hálózati kör nélkül.</p>
+
+    <div class="callout warnbox"><span class="lbl">Buktató</span>
+      <p>Tükröződő és üveges felületeknél a LiDAR hazudik, és az illesztés látszólag ok nélkül elszáll. Ez nem hiba a szintben — érdemes egy tesztet direkt üveges környezetben futtatni, és megbeszélni a szenzorfizikát.</p></div>
+  </article>
+
+  <article class="card lvl">
+    <div class="lvl-head">
+      <span class="stamp">L05</span>
+      <div>
+        <h3>Valós SLAM és navigáció</h3>
+        <p class="goal">Saját térkép, saját pontsorozat, ütközésmentes bejárás — az eredeti alapötlet teljes formájában.</p>
+      </div>
+    </div>
+
+    <h4>Mit ért meg</h4>
+    <p class="prose">Hogy a térképezés és a lokalizáció ugyanannak a problémának a két fele, és hogy megoldani őket egyszerre csak közelítéssel lehet. Hogy a <b>hurokzárás</b> az, ami a halmozódó hibát egyszerre visszarántja. Hogy a „ne menj közel a falhoz" nem egy szabály, hanem egy <b>költségtérkép felfújási sugara</b>. És hogy a tervezés két rétegben történik: globálisan az egész térképen, lokálisan a következő másodpercekre.</p>
+
+    <h4>Két SLAM összehasonlítása</h4>
+    <p class="prose">Mindkettő telepítve van a roboton, és pont ez a szint egyik legjobb egyetemi feladata: <b>gmapping</b> (részecskeszűrő, minden részecske egy hipotézis a trajektóriáról) versus <b>Cartographer</b> (gráfalapú, utólagos optimalizálással és valódi hurokzárással). A hallgató ugyanazt a szobát mindkettővel feltérképezi, és megindokolja a különbségeket.</p>
+
+    <h4>Amit a hallgató állít</h4>
+    <ul class="params">
+      <li><code>particles</code><span>gmapping részecskeszám — memória vs robusztusság</span></li>
+      <li><code>linearUpdate</code>, <code>angularUpdate</code><span>mekkora mozgás után frissít</span></li>
+      <li><code>srr srt str stt</code><span>az odometria zajmodellje — ide épül be az L02 tudás</span></li>
+      <li><code>submap_size</code><span>Cartographer részkép-mérete</span></li>
+      <li><code>loop_closure_weight</code><span>mennyire bízunk a hurokzárásban</span></li>
+      <li><code>amcl_min/max_particles</code><span>lokalizáció részecskeszáma</span></li>
+      <li><code>odom_alpha1..4</code><span>AMCL mozgászaj-modell</span></li>
+      <li><code>inflation_radius</code><span>„ne menj közel a falhoz" — szó szerint ez</span></li>
+      <li><code>cost_scaling_factor</code><span>milyen meredeken nő a falközelség ára</span></li>
+      <li><code>footprint</code><span>a robot valós körvonala</span></li>
+      <li><code>sim_time</code><span>a lokális tervező előretekintése</span></li>
+      <li><code>path/goal/occdist_bias</code><span>útvonalhűség vs célirány vs akadálykerülés</span></li>
+      <li><code>holonomic_sampling</code><span>oldalazó manőverek engedélyezése</span></li>
+    </ul>
+
+    <h4>Tesztek</h4>
+    <ul class="tight">
+      <li><b>Térképezés hurokkal</b> — körbemenni a szobában úgy, hogy visszaérjen. Cartographernél látványosan „bepattan" a térkép a hurokzáráskor; gmappingnél nem, vagy sokkal kevésbé.</li>
+      <li><b>Térkép mentése</b> — innentől ez a hallgató saját pályája.</li>
+      <li><b>Elrabolt robot</b> — futás közben fizikailag áthelyezzük. Visszatalál-e? Hány részecske kell hozzá?</li>
+      <li><b>Szűk átjáró</b> — a felfújási sugár és a valós körvonal ütközése: ha túl nagy a sugár, a robot úgy dönti el, hogy nem fér át, pedig átférne.</li>
+      <li><b>Mozgó akadály</b> — valaki elé áll. Újratervez vagy megáll?</li>
+      <li><b>Küldetés-bejárás</b> — a saját térképre lerakott pontsorozat végigjárása időre.</li>
+    </ul>
+
+    <div class="callout key"><span class="lbl">Itt teljesül az eredeti vízió</span>
+      <p>A hallgató feltérképezi a saját szobáját, kattintással pontokat rak a térképére, sorrendet ad nekik, és a robot ütközés nélkül végigjárja. Ugyanaz a tervező-felület, amit L03-ban már megszokott — csak most valódi térkép van alatta.</p></div>
+
+    <div class="callout"><span class="lbl">Teljesítési feltétel</span>
+      <p>Saját mentett térkép, rajta legalább öt pont hibátlan bejárása ütközés és kézi beavatkozás nélkül, megadott időkereten belül.</p></div>
+
+    <h4>ROS-oldal</h4>
+    <p class="prose"><code>gmapping</code> / <code>cartographer_ros</code> → <code>map_server</code> → <code>amcl</code> → <code>move_base</code>. A küldetésvégrehajtás <code>MoveBaseGoal</code>-ok sorozata, saját sorrendkezelő fölötte, ami kezeli a sikertelen célokat is (kihagyás, újrapróbálás, feladás).</p>
+
+    <div class="callout warnbox"><span class="lbl">Buktató — mecanum-specifikus</span>
+      <p>A <code>move_base</code> alapértelmezett hangolása differenciálhajtású robotra való. Ha nem engedélyezzük a holonóm mintavételt a lokális tervezőben, az egész oldalazási képesség elveszik, és a robot úgy manőverezik, mintha nem lennének mecanum kerekei. A hallgatónak ezt <b>észre kell vennie</b> — érdemes szándékosan a rossz alapértékkel indítani.</p></div>
+  </article>
+
+  <article class="card lvl">
+    <div class="lvl-head">
+      <span class="stamp">L06</span>
+      <div>
+        <h3>Klasszikus képfeldolgozás</h3>
+        <p class="goal">Képpontokból vezérlőjel — minden köztes lépés élőben látható.</p>
+      </div>
+    </div>
+
+    <h4>Mit ért meg</h4>
+    <p class="prose">Hogy a képfeldolgozás nem varázslat, hanem egy jól átlátható csővezeték, aminek minden állomása megnézhető. Hogy az RGB színtér alkalmatlan színalapú szűrésre, mert a fényerő és a színezet keveredik benne — ezért van HSV. Hogy a morfológiai műveletek zajt tüntetnek el. És a szint végén: hogy egy fix küszöbérték megváltozott megvilágításnál <b>menthetetlenül</b> összeomlik.</p>
+
+    <figure class="sheet">
+      <div class="inner">
+<pre class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'primaryColor':'#e9ebe7','primaryTextColor':'#16191d','primaryBorderColor':'#9aa0a6','lineColor':'#7a828a','fontFamily':'JetBrains Mono, ui-monospace, monospace','fontSize':'12px'}}}%%
+flowchart LR
+  A["kamerakép"] --> B["ROI kivágás<br/><small>sáv pozíció, magasság</small>"]
+  B --> C["színtér-váltás<br/><small>HSV / LAB</small>"]
+  C --> D["küszöbölés<br/><small>min/max tartomány</small>"]
+  D --> E["morfológia<br/><small>erode / dilate</small>"]
+  E --> F["kontúr + súlypont<br/><small>min terület</small>"]
+  F --> G["szabályozás<br/><small>kp, kd, alapsebesség</small>"]
+  G --> H["cmd_vel"]
+
+  B -.->|"élő előnézet"| P1[" "]
+  D -.->|"élő előnézet"| P2[" "]
+  E -.->|"élő előnézet"| P3[" "]
+  F -.->|"élő előnézet"| P4[" "]
+
+  style A fill:#dde9ec,stroke:#2c6473
+  style H fill:#f4e3d4,stroke:#c26520
+  style P1 fill:#ffffff,stroke:#cfd4cd
+  style P2 fill:#ffffff,stroke:#cfd4cd
+  style P3 fill:#ffffff,stroke:#cfd4cd
+  style P4 fill:#ffffff,stroke:#cfd4cd
+</pre>
+      </div>
+      <figcaption><b>Ábra 5</b> <span>A csővezeték minden állomása külön topicra publikál, így mindegyik élőben megnézhető a felületen.</span></figcaption>
+    </figure>
+
+    <h4>Amit a hallgató állít</h4>
+    <ul class="params">
+      <li><code>roi_y</code>, <code>roi_height</code><span>hol nézze a képet — közel vagy távol</span></li>
+      <li><code>roi_bands</code><span>hány sáv: egy közeli + egy távoli = kanyar-előrejelzés</span></li>
+      <li><code>hsv_min</code>, <code>hsv_max</code><span>a keresett szín tartománya</span></li>
+      <li><code>blur_kernel</code><span>simítás mértéke</span></li>
+      <li><code>morph_iterations</code><span>zajtisztítás</span></li>
+      <li><code>min_contour_area</code><span>ennél kisebb folt nem vonal</span></li>
+      <li><code>steer_kp</code>, <code>steer_kd</code><span>a súlyponthiba átfordítása kormányzásra</span></li>
+      <li><code>base_speed</code><span>alapsebesség</span></li>
+      <li><code>curve_slowdown</code><span>lassítás kanyarban</span></li>
+      <li><code>adaptive_threshold</code><span>kapcsoló: fix vagy adaptív küszöb</span></li>
+    </ul>
+
+    <h4>Tesztek</h4>
+    <ul class="tight">
+      <li><b>Egyenes szakasz</b> — mekkora sebességnél kezd oszcillálni. Bevezeti a deriváló tagot.</li>
+      <li><b>Éles kanyar</b> — az egysávos ROI itt bukik el; kell a távoli sáv is.</li>
+      <li><b>Elágazás</b> — két érvényes kontúr. Melyiket válassza? Ez már döntési logika.</li>
+      <li><b>Megszakított vonal</b> — mit csináljon, ha eltűnik a jel: menjen tovább vakon, vagy álljon meg?</li>
+      <li><b>Fényváltoztatás</b> — lekapcsoljuk a villanyt, vagy elhúzzuk a függönyt. A fix küszöb meghal. Az adaptív kapcsoló bekapcsolása után újra megy.</li>
+    </ul>
+
+    <div class="callout"><span class="lbl">Teljesítési feltétel</span>
+      <p>Adott pálya végigmenése letérés nélkül, megadott idő alatt, <b>két különböző megvilágítás mellett ugyanazzal a konfigurációval</b>. Ez utóbbi kényszeríti ki az adaptív megoldást.</p></div>
+
+    <h4>ROS-oldal</h4>
+    <p class="prose"><code>cv_bridge</code> + OpenCV node. Minden köztes kép külön debug-topicra megy (<code>/vision/debug/roi</code>, <code>/vision/debug/mask</code>, <code>/vision/debug/contours</code>), így a meglévő videó-kiszolgáló mindet tudja streamelni. A paraméterek futásidőben cserélhetők, újraindítás nélkül — enélkül a hangolás elviselhetetlenül lassú lenne.</p>
+
+    <div class="callout warnbox"><span class="lbl">Buktató</span>
+      <p>A debug-topicok sávszélessége összeadódik. Négy párhuzamos 640×480-as stream már megterheli a hálózatot és a Jetsont is — ezért csak az <b>éppen megnyitott</b> panelek debug-kimenetét szabad publikálni, a többit dinamikusan ki kell kapcsolni.</p></div>
+  </article>
+
+  <article class="card lvl">
+    <div class="lvl-head">
+      <span class="stamp">L07</span>
+      <div>
+        <h3>Objektumfelismerés saját adatból</h3>
+        <p class="goal">A robot gyűjti az adatot, a hallgató címkézi, a GPU tanítja, a Jetson futtatja.</p>
+      </div>
+    </div>
+
+    <h4>Mit ért meg</h4>
+    <p class="prose">Hogy a gépi tanulás nagy része nem a tanítás, hanem az <b>adat</b>. Hogy egy rosszul összeválogatott adathalmaz olyan modellt szül, ami a laborban tökéletes és a folyosón használhatatlan. Hogy a konfidencia-küszöb a téves riasztás és a kimaradás közötti kompromisszum, és ezt a feladat dönti el, nem a szoftver. És hogy a kép látszólagos mérete távolsággá alakítható — ez a lyukkamera-modell.</p>
+
+    <h4>Három lépcső a szinten belül</h4>
+    <ol class="tight">
+      <li><b>Klasszikus felismerés</b> — a STOP tábla szín és alak alapján, tanulás nélkül. Működik, amíg a tábla piros, kerek és jól megvilágított. Ez a viszonyítási alap.</li>
+      <li><b>Adatgyűjtés és tanítás</b> — a robot körbejár és automatikusan menti a képkockákat, a hallgató a böngészőben kereteket rajzol rájuk, majd a tanítás elindul. A finomhangolás <b>nem a Jetsonon</b> fut, hanem a meglévő RTX 5080-as gépen — a Jetson erre gyenge, és amúgy is épp a robotot kell futtatnia.</li>
+      <li><b>Telepítés és hangolás</b> — a betanított modell TensorRT-motorrá fordítva kerül vissza a Jetsonra, és élőben hangolható.</li>
+    </ol>
+
+    <figure class="sheet">
+      <div class="inner">
+<pre class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'primaryColor':'#e9ebe7','primaryTextColor':'#16191d','primaryBorderColor':'#9aa0a6','lineColor':'#7a828a','fontFamily':'JetBrains Mono, ui-monospace, monospace','fontSize':'12px'}}}%%
+flowchart LR
+  subgraph ROBOT["Robot — Jetson"]
+    CAP["automatikus<br/>képkocka-mentés"]
+    INF["élő következtetés<br/>TensorRT"]
+  end
+  subgraph WEB["Böngésző — hallgató"]
+    LBL["keretezés,<br/>osztálycímkék"]
+    TUNE["küszöbök<br/>hangolása"]
+  end
+  subgraph GPU["Tanító gép — RTX 5080"]
+    AUG["adatbővítés"]
+    TRAIN["YOLO finomhangolás"]
+    EXP["export →<br/>TensorRT motor"]
+  end
+
+  CAP --> LBL --> AUG --> TRAIN --> EXP --> INF --> TUNE
+  TUNE -.->|"kevés az adat<br/>új kör"| CAP
+
+  style ROBOT fill:#e9ebe7,stroke:#16191d
+  style WEB fill:#dde9ec,stroke:#2c6473
+  style GPU fill:#f4e3d4,stroke:#c26520
+</pre>
+      </div>
+      <figcaption><b>Ábra 6</b> <span>A tanítási kör. A robot csak gyűjt és futtat; a nehéz számítás máshol van.</span></figcaption>
+    </figure>
+
+    <h4>Amit a hallgató állít</h4>
+    <ul class="params">
+      <li><code>conf_threshold</code><span>konfidencia-küszöb</span></li>
+      <li><code>nms_iou</code><span>átfedő keretek összevonása</span></li>
+      <li><code>input_size</code><span>bemeneti felbontás — pontosság vs képkockasebesség</span></li>
+      <li><code>class_filter</code><span>mely osztályokra figyeljen</span></li>
+      <li><code>temporal_votes</code><span>hány egymást követő képkockán kell látni</span></li>
+      <li><code>focal_px</code>, <code>object_real_h</code><span>méret→távolság becslés paraméterei</span></li>
+      <li><code>stop_trigger_height</code><span>mekkora keretmagasságnál álljon meg</span></li>
+      <li><code>augment_set</code><span>tanításkori adatbővítés: forgatás, fényerő, elmosás</span></li>
+    </ul>
+
+    <h4>A távolságbecslés, amit meg kell érteni</h4>
+    <pre><code>d  =  f · H_valós / h_képpont
+
+f          — a kamera fókusztávolsága képpontban (intrinsics)
+H_valós    — az objektum valós magassága méterben
+h_képpont  — a detektált keret magassága</code></pre>
+    <p class="prose">Ez a becslés önmagában is működik — és pont ezért kiváló feladat <b>összevetni a mélységkamera mérésével</b>. Ahol a kettő eltér, ott vagy az intrinsics rossz, vagy a feltételezett objektummagasság. Ez a gyakorlat közvetlenül átvezet az L09-be.</p>
+
+    <h4>Tesztek</h4>
+    <ul class="tight">
+      <li><b>Validációs kiértékelés</b> — pontosság és fedés a félretett képeken, osztályonként.</li>
+      <li><b>Téves riasztás vadászat</b> — a robot körbejár, és minden detektálás naplózódik. Amit tévesen talált, az új negatív tanítómintává válik.</li>
+      <li><b>STOP-teszt</b> — táblák a padlón, a robotnak a helyes távolságban meg kell állnia. Öt próbából öt.</li>
+      <li><b>Általánosítási teszt</b> — másik szobában, másik fénynél. Itt derül ki, mennyire volt jó az adatgyűjtés.</li>
+    </ul>
+
+    <div class="callout"><span class="lbl">Teljesítési feltétel</span>
+      <p>Saját tanított osztályon a validációs mAP átlép egy küszöböt, és a STOP-teszt öt próbából öt sikeres <b>egy olyan helyszínen, ahol az adat nem gyűlt</b>.</p></div>
+
+    <div class="callout warnbox"><span class="lbl">Buktató</span>
+      <p>Jetson Xavier NX-en a nyers PyTorch-következtetés kínosan lassú. TensorRT-re fordítás nélkül a szint élménye tönkremegy — ezért a fordítás nem opcionális extra, hanem a csővezeték kötelező lépése. A 40 GB szabad tárhely a Jetsonon szűkös lehet több hallgató adathalmazához: az adatgyűjtés célja legyen a Gateway, ne a robot lemeze.</p></div>
+  </article>
+
+  <article class="card lvl">
+    <div class="lvl-head">
+      <span class="stamp">L08</span>
+      <div>
+        <h3>Szemantikus navigáció</h3>
+        <p class="goal">Durva odaérés térkép alapján, finom rátalálás kamerával.</p>
+      </div>
+    </div>
+
+    <h4>Mit ért meg</h4>
+    <p class="prose">Hogy a térkép azt tudja, <i>hol</i> van a robot, de nem tudja, <i>mi</i> van körülötte — a kettő összekötése a szemantikus réteg. Hogy egy navigációs cél megközelítése és egy tárgy pontos megközelítése két különböző szabályozási feladat, és váltani kell köztük. Hogy a képalapú szabályozás (vizuális szervó) nem térbeli koordinátákkal dolgozik, hanem közvetlenül a képen mért hibával.</p>
+
+    <h4>A feladat szerkezete</h4>
+    <ol class="tight">
+      <li>Navigáció a térképen egy hozzávetőleges zónába — itt még az L05 gépezete dolgozik.</li>
+      <li>Keresés: körbefordulás vagy pásztázás, amíg a detektor talál valamit.</li>
+      <li>Átkapcsolás vizuális szervóra: a cél a képen középre kerüljön, és adott látszólagos méretet érjen el.</li>
+      <li>A megtalált objektum pozíciójának <b>elmentése a térkép koordináta-rendszerébe</b> — így épül a szemantikus térképréteg, ami a következő futásban már kiindulópont.</li>
+    </ol>
+
+    <h4>Amit a hallgató állít</h4>
+    <ul class="params">
+      <li><code>handoff_distance</code><span>mikor váltson navigációról szervóra</span></li>
+      <li><code>servo_kp_lateral</code><span>vízszintes képhiba erősítése</span></li>
+      <li><code>servo_kp_range</code><span>közelítés erősítése</span></li>
+      <li><code>target_bbox_height</code><span>mekkora látszólagos méretnél áll meg</span></li>
+      <li><code>search_pattern</code><span>körbefordulás, spirál vagy pásztázás</span></li>
+      <li><code>lost_timeout</code><span>meddig keresse, ha elvesztette</span></li>
+      <li><code>semantic_merge_dist</code><span>ennél közelebbi detektálások ugyanaz a tárgy</span></li>
+      <li><code>semantic_decay</code><span>meddig hisszük el a régi megfigyelést</span></li>
+    </ul>
+
+    <h4>Tesztek</h4>
+    <ul class="tight">
+      <li><b>Három tárgy megtalálása</b> — mindegyiket 20 cm-en belül meg kell közelíteni.</li>
+      <li><b>Elvesztés és visszatalálás</b> — futás közben eltakarjuk a tárgyat. Mit csinál?</li>
+      <li><b>Hamis cél</b> — két hasonló tárgy. Melyiket választja, és következetes marad-e?</li>
+      <li><b>Szemantikus memória</b> — második futásban gyorsabban ér oda, mert emlékszik.</li>
+    </ul>
+
+    <div class="callout"><span class="lbl">Teljesítési feltétel</span>
+      <p>Három megjelölt tárgy megtalálása és 20 cm-en belüli megközelítése egyetlen futásban, kézi beavatkozás nélkül, időkorláton belül.</p></div>
+
+    <h4>ROS-oldal</h4>
+    <p class="prose">Állapotgép vagy már itt egy egyszerű viselkedésfa, ami vált a <code>move_base</code> és a saját szervó-szabályozó között. A felismert tárgyak pózát TF-be és egy perzisztens szemantikus rétegbe írjuk, ami túléli a futást.</p>
+
+    <div class="callout warnbox"><span class="lbl">Buktató</span>
+      <p>A vizuális szervó és a lokális akadálykerülés <b>egymás ellen dolgozhat</b>: a szervó előre húz a tárgy felé, a költségtérkép meg lefékez, mert közeledik valamihez. A kettő kimenetét össze kell hangolni, nem egymásra rakni — ez maga is jó mérnöki feladat a hallgatónak.</p></div>
+  </article>
+
+  <article class="card lvl">
+    <div class="lvl-head">
+      <span class="stamp">L09</span>
+      <div>
+        <h3>3D érzékelés és robotkar</h3>
+        <p class="goal">Képpontból megfogási póz — a koordináta-rendszerek láncán keresztül.</p>
+      </div>
+    </div>
+
+    <h4>Mit ért meg</h4>
+    <p class="prose">Hogy egy 2D detektálás és egy mélységérték együtt már 3D pozíció — és hogy ehhez ismerni kell a kamera belső paramétereit. Hogy minden szenzor és ízület a saját koordináta-rendszerében beszél, és ezeket egy <b>lánc</b> köti össze; ha a lánc egyetlen eleme rossz, a kar mellényúl. Hogy a négy szabadságfok nem elég tetszőleges térbeli irányból való megfogáshoz — a munkatér korlátos, és ezt tervezéskor tudni kell.</p>
+
+    <h4>A visszavetítés, amit ki kell számolni</h4>
+    <pre><code>Z = mélységkép(u, v)          # méterben, a mélység-optikai frame-ben
+X = (u − cx) · Z / fx
+Y = (v − cy) · Z / fy
+
+fx, fy, cx, cy  — a kamera belső paraméterei (intrinsics)
+u, v            — a detektált keret közepe képpontban</code></pre>
+
+    <figure class="sheet">
+      <div class="inner">
+<pre class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'primaryColor':'#e9ebe7','primaryTextColor':'#16191d','primaryBorderColor':'#9aa0a6','lineColor':'#7a828a','fontFamily':'JetBrains Mono, ui-monospace, monospace','fontSize':'12px'}}}%%
+flowchart LR
+  PIX["képpont<br/>u, v"] -->|"intrinsics<br/>fx fy cx cy"| OPT["camera_depth<br/>_optical_frame"]
+  OPT -->|"gyári szerelési<br/>geometria"| BASE["base_link"]
+  BASE -->|"HAND-EYE<br/>ezt kalibrálja<br/>a hallgató"| ARM["arm_base_link"]
+  ARM -->|"URDF · ízületszögek"| GRIP["gripper_link"]
+  GRIP --> POSE["megfogási póz<br/>x y z + orientáció"]
+  POSE -->|"inverz kinematika<br/>MoveIt"| JOINTS["ízület-célszögek"]
+
+  style PIX fill:#dde9ec,stroke:#2c6473
+  style BASE fill:#e9ebe7,stroke:#16191d
+  style ARM fill:#f4e3d4,stroke:#c26520,stroke-width:2px
+  style JOINTS fill:#f6e0dc,stroke:#a2453a
+</pre>
+      </div>
+      <figcaption><b>Ábra 7</b> <span>A koordináta-lánc. A kiemelt szem-kéz transzformáció az egyetlen, amit a hallgatónak magának kell megtalálnia.</span></figcaption>
+    </figure>
+
+    <h4>Szem-kéz kalibráció — a szint magja</h4>
+    <p class="prose">A kamera és a kar tövének egymáshoz viszonyított helyzete az a hat szám, ami eldönti, sikerül-e a megfogás. A hallgató iteratívan találja meg: egy markert tesz a megfogóba, a kart ismert pózokba mozgatja, a kamera megfigyeli, hol látja — az eltérésekből finomítja az eltolást és az elforgatást. A felület élőben mutatja, hogy a becsült és a megfigyelt pozíció mennyire fedi egymást.</p>
+
+    <h4>Amit a hallgató állít</h4>
+    <ul class="params">
+      <li><code>hand_eye_xyz</code><span>eltolás három komponense</span></li>
+      <li><code>hand_eye_rpy</code><span>elforgatás három szöge</span></li>
+      <li><code>depth_roi_size</code><span>mekkora foltból olvassa a mélységet</span></li>
+      <li><code>depth_median_window</code><span>zajszűrés a mélységértéken</span></li>
+      <li><code>approach_height</code><span>mennyivel a tárgy fölé álljon először</span></li>
+      <li><code>descend_speed</code><span>leereszkedés sebessége</span></li>
+      <li><code>grip_width_open/closed</code><span>megfogó nyitás és zárás</span></li>
+      <li><code>arm_vel_scale</code>, <code>arm_acc_scale</code><span>kar sebesség- és gyorsuláskorlát</span></li>
+      <li><code>retreat_height</code><span>emelés a megfogás után</span></li>
+    </ul>
+
+    <h4>Tesztek</h4>
+    <ul class="tight">
+      <li><b>Ismert pozíció</b> — a markert lemért helyre tesszük, és megnézzük, mekkora a becslési hiba. Ez méri a kalibráció minőségét, megfogás nélkül.</li>
+      <li><b>Munkatér-térkép</b> — a felület kirajzolja, mely pontok érhetők el a négy szabadságfokkal, és melyek nem. A hallgató meglepődik, mennyire szűk.</li>
+      <li><b>Mélységbecslés keresztellenőrzés</b> — a mélységkamera értéke versus az L07-es méretalapú becslés ugyanarra a tárgyra.</li>
+      <li><b>Ismételt megfogás</b> — ugyanabból a pozícióból tízszer. A szórás mond el mindent a rendszer stabilitásáról.</li>
+    </ul>
+
+    <div class="callout"><span class="lbl">Teljesítési feltétel</span>
+      <p>Tíz próbából nyolc sikeres megfogás és felemelés, ugyanazzal a kalibrációval, két különböző tárgypozícióból.</p></div>
+
+    <h4>ROS-oldal</h4>
+    <p class="prose">A meglévő <code>mini_mec_four_arm_moveit_config</code> a kiindulópont, <code>move_group</code> pozíció-alapú inverz kinematikával (négy szabadságfoknál teljes póz-IK sokszor nem oldható meg). A gyári <code>wheeltec_arm_pick</code> csomag referenciaként használható, de a megfogási sorrendet saját, paraméterezhető szekvenciára cseréljük, hogy hangolható legyen.</p>
+
+    <div class="callout warnbox"><span class="lbl">Buktató</span>
+      <p>Az Astra mélységképe és színképe nem feltétlenül van egymáshoz igazítva. Ha nem regisztrált a két adatfolyam, a színképen detektált keret közepe <b>nem ugyanaz a képpont</b> a mélységképen — és a kar néhány centivel mellényúl, látszólag megmagyarázhatatlanul. Ezt még az élesítés előtt ellenőrizni kell.</p></div>
+  </article>
+
+  <article class="card lvl">
+    <div class="lvl-head">
+      <span class="stamp">L10</span>
+      <div>
+        <h3>Teljes küldetés</h3>
+        <p class="goal">A megszerzett képességek összefűzése viselkedésfává — a záró projekt.</p>
+      </div>
+    </div>
+
+    <h4>Mit ért meg</h4>
+    <p class="prose">Hogy egy összetett robotviselkedés nem egy hosszú szkript, hanem egy <b>fa</b>, aminek minden csomópontja sikerrel, kudarccal vagy „még fut" állapottal tér vissza. Hogy a valódi robotikai munka nagy része a kudarcok kezelése: mi legyen, ha nem találja a tárgyat, ha elakad, ha lemerül. Hogy egy jól felépített fa új képességgel bővíthető anélkül, hogy a meglévő ágak elromlanának.</p>
+
+    <div class="callout key"><span class="lbl">Ez a válasz arra, hogy „ne legyen se node-írás, se gyerekjáték"</span>
+      <p>A hallgató nem szöveges kódot ír, hanem <b>valódi robotikai primitívekből</b> épít viselkedésfát a böngészőben. A blokkok nem kitalált játékelemek — mindegyik egy olyan képesség, amit ő maga hangolt be az előző kilenc szinten. Ez látszatra vizuális programozás, tartalmában viszont pontosan az, amit ipari robotoknál is csinálnak.</p></div>
+
+    <figure class="sheet">
+      <div class="inner">
+<pre class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'primaryColor':'#e9ebe7','primaryTextColor':'#16191d','primaryBorderColor':'#9aa0a6','lineColor':'#7a828a','fontFamily':'JetBrains Mono, ui-monospace, monospace','fontSize':'12px'}}}%%
+flowchart TB
+  ROOT["SEQUENCE<br/>küldetés"]
+  ROOT --> A1["navigálj a keresési zónába<br/><small>L05</small>"]
+  ROOT --> F1["FALLBACK<br/>tárgy megszerzése"]
+  ROOT --> A5["navigálj a leadóhelyre<br/><small>L05</small>"]
+  ROOT --> A6["engedd el<br/><small>L09</small>"]
+
+  F1 --> S1["SEQUENCE<br/>első próbálkozás"]
+  F1 --> R1["RETRY ×3<br/>keress máshol"]
+  F1 --> GU["jelentsd a kudarcot<br/>és térj vissza"]
+
+  S1 --> B1["keresd meg a tárgyat<br/><small>L07 + L08</small>"]
+  S1 --> B2["közelítsd meg vizuálisan<br/><small>L08</small>"]
+  S1 --> B3["becsüld a 3D pózt<br/><small>L09</small>"]
+  S1 --> B4["fogd meg<br/><small>L09</small>"]
+
+  style ROOT fill:#f4e3d4,stroke:#c26520,stroke-width:2px
+  style F1 fill:#dde9ec,stroke:#2c6473
+  style S1 fill:#dde9ec,stroke:#2c6473
+  style GU fill:#f6e0dc,stroke:#a2453a
+</pre>
+      </div>
+      <figcaption><b>Ábra 8</b> <span>Egy tipikus küldetésfa. Minden levél egy korábbi szinten behangolt képesség.</span></figcaption>
+    </figure>
+
+    <h4>Építőelemek a szerkesztőben</h4>
+    <div class="tw">
+    <table>
+      <thead><tr><th>Vezérlő csomópontok</th><th>Képesség-levelek</th><th>Feltételek</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>Sequence</code> — sorban mind<br><code>Fallback</code> — az első, ami sikerül<br><code>Parallel</code> — egyszerre<br><code>Retry</code> — N újrapróbálás<br><code>Timeout</code> — időkorlát<br><code>Inverter</code> — eredmény fordítása</td>
+          <td><code>NavigateTo</code> · <code>FollowWaypoints</code><br><code>ScanForObject</code> · <code>VisualApproach</code><br><code>EstimateGraspPose</code><br><code>Grasp</code> · <code>Release</code><br><code>FollowLine</code> · <code>Dock</code></td>
+          <td><code>ObjectVisible?</code><br><code>BatteryAbove?</code><br><code>AtLocation?</code><br><code>Holding?</code><br><code>PathClear?</code></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <h4>Pontozás</h4>
+    <ul class="params">
+      <li><code>completion</code><span>hány részfeladat teljesült</span></li>
+      <li><code>time</code><span>teljes futásidő</span></li>
+      <li><code>collisions</code><span>biztonsági veto-események száma</span></li>
+      <li><code>grasp_success</code><span>sikeres megfogások aránya</span></li>
+      <li><code>interventions</code><span>kézi beavatkozások száma</span></li>
+      <li><code>path_efficiency</code><span>megtett út a lehető legrövidebbhez képest</span></li>
+    </ul>
+
+    <div class="callout"><span class="lbl">Teljesítési feltétel</span>
+      <p>A teljes küldetés végigfutása kézi beavatkozás nélkül, plusz egy <b>zavart futás</b>: a tárgy máshol van, mint várta, vagy valaki eléáll. A fa kezelje le.</p></div>
+  </article>
+
+</section>
+
+<section id="biztonsag">
+  <span class="eyebrow">06 — Biztonsági réteg</span>
+  <h2>A felügyelő, amit nem lehet kikapcsolni</h2>
+  <p class="sec-note">Kezdők vezérelnek egy több kilós, mozgó gépet — részben távolról, változó minőségű hálózaton. A biztonság ezért nem a felületen van, hanem a robot fedélzetén, és akkor is működik, ha minden más elszakad.</p>
+
+  <figure class="sheet">
+    <div class="inner">
+<pre class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'primaryColor':'#e9ebe7','primaryTextColor':'#16191d','primaryBorderColor':'#9aa0a6','lineColor':'#7a828a','fontFamily':'JetBrains Mono, ui-monospace, monospace','fontSize':'12px'}}}%%
+flowchart TB
+  CMD["parancs a hallgatótól"] --> W{"friss a kapcsolat?<br/>500 ms-on belül"}
+  W -->|nem| STOP["lassított megállás"]
+  W -->|igen| V{"sebesség a szint<br/>korlátain belül?"}
+  V -->|nem| CLAMP["levágás a korlátra"]
+  V -->|igen| O{"akadály a<br/>mozgásirányban?"}
+  CLAMP --> O
+  O -->|"a kemény korlát alatt"| VETO["veto — megállás<br/>+ napló + indoklás"]
+  O -->|nem| ARM{"kar a munkatéren<br/>és a limiteken belül?"}
+  ARM -->|nem| REJ["parancs elutasítva"]
+  ARM -->|igen| BAT{"akkufeszültség<br/>küszöb felett?"}
+  BAT -->|nem| DOCK["dokkolás vagy<br/>biztonságos leállás"]
+  BAT -->|igen| EXEC["végrehajtás"]
+
+  ES["VÉSZ-STOP<br/>hardveres · felületi · tanári"] -.->|"bármikor, mindent felülír"| STOP
+
+  style ES fill:#f6e0dc,stroke:#a2453a,stroke-width:2px
+  style STOP fill:#f6e0dc,stroke:#a2453a
+  style VETO fill:#f6e0dc,stroke:#a2453a
+  style EXEC fill:#e9ebe7,stroke:#16191d
+</pre>
+    </div>
+    <figcaption><b>Ábra 9</b> <span>Minden parancs végigmegy ezen a láncon, mielőtt motorhoz jutna.</span></figcaption>
+  </figure>
+
+  <h3>Két szintű korlátok</h3>
+  <p class="prose">A sebesség- és távolságkorlátoknak <b>két rétege</b> van. A felső réteget a hallgató hangolja — L05-ben például pont az a feladat, hogy megtalálja a jó falközelséget. Az alsó réteg viszont egy soha át nem léphető abszolút korlát, amit a felület meg sem mutat. Így a tanulás szabad marad, a hardver mégis védve van.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Védelem</th><th>Hallgató által hangolható</th><th>Abszolút korlát</th></tr></thead>
+    <tbody>
+      <tr><td>Haladási sebesség</td><td>szintenkénti felső határ</td><td>a szintnek megfelelő kemény plafon</td></tr>
+      <tr><td>Falközelség</td><td>felfújási sugár, költséggörbe</td><td>vészfék-távolság, letiltva nem lehet</td></tr>
+      <tr><td>Kar-munkatér</td><td>megközelítési magasságok</td><td>ízület-limitek, önütközés-tiltás</td></tr>
+      <tr><td>Kapcsolatvesztés</td><td>—</td><td>watchdog, lassított megállás</td></tr>
+      <tr><td>Akkufeszültség</td><td>figyelmeztetési küszöb</td><td>kényszerleállás</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout key">
+    <span class="lbl">Pedagógiai fordulat</span>
+    <p>Minden veto-esemény naplózódik, és a hallgató <b>látja az indoklást</b>: „megálltam, mert a mozgásirányban 18 cm-re akadály volt, a te beállításod 12 cm". Így a biztonsági réteg nem elveszi a tanulást, hanem tananyaggá válik — ez az egyik legjobb visszajelzési csatorna az egész rendszerben.</p>
+  </div>
+
+  <h3>Fizikai óvintézkedések a laborban</h3>
+  <ul class="tight">
+    <li>Lökhárító-perem vagy habszivacs-keret a robot körül a korai szintekhez.</li>
+    <li>Kijelölt, körbekerített pálya — L01–L03 alatt a robot ne tudjon lépcső vagy kábelköteg felé menni.</li>
+    <li>Fizikai vész-stop gomb a roboton, ami hardveresen bontja a motortápot, nem szoftveresen.</li>
+    <li>Első alkalommal a kar csak a hallgató jelenlétében indul — a kar a rendszer legveszélyesebb és legtörékenyebb része.</li>
+  </ul>
+</section>
+
+<section id="meres">
+  <span class="eyebrow">07 — Mérés és pontozás</span>
+  <h2>Minden futás visszajátszható</h2>
+  <p class="sec-note">Ha nincs rögzítés, nincs objektív értékelés és nincs hibakeresés sem. A naplózás ezért nem utólagos extra, hanem az első fázisban megépítendő alapinfrastruktúra.</p>
+
+  <h3>Mit rögzítünk</h3>
+  <p class="prose">Minden teszt- és küldetésfutás alatt szűkített topiclistával naplót írunk: parancsolt és mért sebesség, odometria, becsült póz, LiDAR-pásztázás, biztonsági események, detektálások, ízületállapotok, plusz a futás alatt érvényes teljes paraméter-készlet. A videó külön, alacsonyabb bitrátával megy. A napló a Gateway-re kerül, nem a robot lemezén marad.</p>
+
+  <h3>Mire jó</h3>
+  <ul class="tight">
+    <li><b>Automatikus pontozás</b> — a teljesítési feltételek a naplóból értékelődnek ki, nem szemre. Így objektív és megismételhető.</li>
+    <li><b>Böngészős visszajátszás</b> — idővonal, léptetés, egyszerre látható a videó, a pásztázás és a paraméterek. A hallgató visszanézi, hol romlott el.</li>
+    <li><b>Összehasonlítás</b> — két futás egymás mellett, más paraméterekkel. Ez teszi láthatóvá, hogy a hangolás <i>tényleg</i> segített-e.</li>
+    <li><b>Jegyzőkönyv</b> — a beadandó melléklete: mit mért, mit állított, miért, milyen eredménnyel.</li>
+    <li><b>Hibakeresés nekünk</b> — ha valami elromlik, van rögzítésünk, nem a hallgató emlékére hagyatkozunk.</li>
+  </ul>
+
+  <h3>Haladás és feloldás</h3>
+  <p class="prose">A szintek feloldása a teljesítési feltételekhez kötött, de <b>nem mereven</b>: érdemes hagyni bekukkantást a következő szintbe, és a tanárnak legyen joga feloldani. A merev zárolás motivációt öl, a teljes szabadság meg elveszi a lépcsőzetesség lényegét — a köztes megoldás a jó.</p>
+
+  <h3>Ranglista, óvatosan</h3>
+  <p class="prose">Az időre és pontosságra menő rangsor sokat dob a motiváción, de kizárólag a <b>küldetés-szintű</b> feladatoknál javasolt (L03, L05, L06, L10). A kalibrációs szinteket ne versenyeztessük — ott a gondos mérés a cél, nem a gyorsaság, és a verseny pont a rossz viselkedést jutalmazná.</p>
+
+  <h3>Tanári konzol</h3>
+  <ul class="tight">
+    <li>Minden hallgató haladása egy nézetben, szintenként.</li>
+    <li>Élő rátekintés a futó munkamenetre, globális vész-stop.</li>
+    <li>Robot alaphelyzetbe állítása, póz-reset, konfiguráció visszaállítása.</li>
+    <li>Foglalási naptár és sor kezelése, idősáv-kiosztás csoportoknak.</li>
+    <li>Küldetések kiosztása, teljesítési feltételek felülbírálása, kézi pontozás.</li>
+    <li>Aggregált statisztika: hol akadnak el a legtöbben — ez mondja meg, melyik szintet kell átdolgozni.</li>
+  </ul>
+</section>
+
+<section id="flotta">
+  <span class="eyebrow">08 — Flotta-skálázás</span>
+  <h2>Egy robotról sokra</h2>
+  <p class="sec-note">A hosszú távú cél olcsóbb, Raspberry-alapú robotokból álló flotta, ahol mindenkinek jut saját eszköz. Ezt nem később kell megoldani, hanem most kell nem elrontani.</p>
+
+  <div class="prose">
+    <p>A trükk a <b>képesség-deklaráció</b>. Minden robot leírja magáról, mit tud; minden szint leírja magáról, mit igényel. A felület a kettő metszetét mutatja. Egy mélységkamera nélküli Pi-roboton az L09 egyszerűen nem jelenik meg — nem hibaüzenettel, hanem eleve.</p>
+  </div>
+
+  <figure class="sheet">
+    <div class="inner">
+<pre class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'primaryColor':'#e9ebe7','primaryTextColor':'#16191d','primaryBorderColor':'#9aa0a6','lineColor':'#7a828a','fontFamily':'JetBrains Mono, ui-monospace, monospace','fontSize':'12px'}}}%%
+flowchart TB
+  GW["GATEWAY<br/>verziófüggetlen protokoll"]
+
+  GW --- A1["Agent · ROS 1 adapter"]
+  GW --- A2["Agent · ROS 2 adapter"]
+  GW --- A3["Agent · szimulátor"]
+
+  A1 --> R1["Pickerbot Mini<br/>Jetson Xavier NX"]
+  A2 --> R2["Pi-robot #1"]
+  A2 --> R3["Pi-robot #2 …"]
+  A3 --> R4["Szimulált robotok<br/>hallgatónként"]
+
+  R1 --- C1["mecanum · lidar · RGBD<br/>4-DOF kar"]
+  R2 --- C2["mecanum · lidar · RGB<br/>kar nélkül"]
+  R4 --- C3["konfigurálható"]
+
+  C1 --- L1["L01 – L10"]
+  C2 --- L2["L01 – L08"]
+  C3 --- L3["képességtől függ"]
+
+  style GW fill:#f4e3d4,stroke:#c26520,stroke-width:2px
+  style R1 fill:#e9ebe7,stroke:#16191d
+  style R4 fill:#dde9ec,stroke:#2c6473
+</pre>
+    </div>
+    <figcaption><b>Ábra 10</b> <span>Ugyanaz a Gateway és ugyanaz a felület, három különböző robotoldali valóság mögötte.</span></figcaption>
+  </figure>
+
+  <div class="callout warnbox">
+    <span class="lbl">ROS-verzió — fontos döntés</span>
+    <p>A robot ROS Noetic-en fut, ami már nem kap támogatást. Új flottát <b>nem érdemes</b> Noeticre építeni. Ezért a Jetson maradhat Noeticen, az új Pi-k viszont ROS 2-t kapnak — és pontosan ezért kell az Agent-réteg: a Gateway-protokoll nem tud a ROS verziójáról, csak az adapterek. Ez a terv egyik legfontosabb jövőbiztosító eleme.</p>
+  </div>
+
+  <h3>Pi-robot vázlatos összeállítás</h3>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Elem</th><th>Javaslat</th><th>Miért</th></tr></thead>
+    <tbody>
+      <tr><td>Számítás</td><td>Raspberry Pi 5, 8 GB</td><td>SLAM és klasszikus CV elfut rajta; neurális hálóhoz gyorsító kell</td></tr>
+      <tr><td>Alváz</td><td>Mecanum, 4 motor enkóderrel</td><td>Ugyanaz a kinematika, mint a nagy roboton — a tananyag átvihető</td></tr>
+      <tr><td>Motorvezérlés</td><td>Dedikált vezérlő vagy H-híd + enkóder-számláló</td><td><b>Kerékszintű hozzáférés</b> — itt megvalósítható az, ami a Wheeltec alvázon talán nem</td></tr>
+      <tr><td>LiDAR</td><td>Belépő 2D LiDAR</td><td>L04–L05 elengedhetetlen feltétele</td></tr>
+      <tr><td>IMU</td><td>9 tengelyes modul</td><td>Szögbecslés fúzióhoz</td></tr>
+      <tr><td>Kamera</td><td>Pi-kamera vagy USB webkamera</td><td>L06–L08-hoz elég</td></tr>
+      <tr><td>Mélység</td><td>Nincs, vagy olcsó sztereó</td><td>L09 marad a nagy roboton — ezt a képesség-deklaráció kezeli</td></tr>
+      <tr><td>Kar</td><td>Opcionális hobbi szervokar</td><td>Csak ha az L09 is kell; jelentősen drágít</td></tr>
+      <tr><td>Táp</td><td>Akkumulátor + védelem, feszültségméréssel</td><td>A biztonsági réteg akkufigyelése enélkül nem működik</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout">
+    <span class="lbl">Meglepő előny</span>
+    <p>A Pi-robot bizonyos szempontból <b>jobb tanulóeszköz</b>, mint a nagy: nyers motorvezérlés van rajta, tehát az L01 és L02 valódi kerékszintű formában tanítható, nem korlátozott változatban. A drága robot ereje a felső szinteken, a karnál és a mélységérzékelésnél mutatkozik meg.</p>
+  </div>
+</section>
+
+<section id="stack">
+  <span class="eyebrow">09 — Technológiai stack</span>
+  <h2>Mit mivel</h2>
+  <p class="sec-note">Az elv: minél kevesebb új technológia, minél több abból, ami már fut vagy amit a csapat ismer.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Réteg</th><th>Választás</th><th>Indoklás</th></tr></thead>
+    <tbody>
+      <tr><td>Robotoldali ügynök</td><td>Python, a meglévő ROS-környezetben</td><td>A ROS ökoszisztéma Python-központú; nincs fordítási lépés a fejlesztési körben</td></tr>
+      <tr><td>Skill-node-ok</td><td>Python node-ok, manifesztvezérelt paraméterezéssel</td><td>Saját, egyszerű paraméterkezelés a nehézkes szabványos megoldás helyett</td></tr>
+      <tr><td>Gateway</td><td>Python webes keretrendszer, aszinkron</td><td>Közös sémák a robotoldallal — egy helyen definiált üzenetformátumok</td></tr>
+      <tr><td>Adatbázis</td><td>Relációs adatbázis + gyorsítótár/üzenetsor</td><td>Konfigok, haladás, pontszámok; a sor és az élő állapot a gyorsítótárban</td></tr>
+      <tr><td>Fájltár</td><td>Objektumtár vagy egyszerű lemezes tár</td><td>Térképek, naplók, adathalmazok, modellek</td></tr>
+      <tr><td>Frontend</td><td>Komponens-alapú JS keretrendszer, típusos</td><td>A manifesztből generált vezérlők miatt erős típusosság kell</td></tr>
+      <tr><td>3D nézet</td><td>A már bevált 3D könyvtár</td><td>A jelenlegi dashboardban működik — nem cserélünk</td></tr>
+      <tr><td>Viselkedésfa-szerkesztő</td><td>Gráfszerkesztő könyvtár</td><td>A fa természetes megjelenítése; a blokk-alapú megoldás itt korlátozó lenne</td></tr>
+      <tr><td>Videó</td><td>WebRTC, hardveres kódolással</td><td>Alacsony késleltetés; a jelenlegi MJPEG csak tartaléknak marad</td></tr>
+      <tr><td>Szimuláció</td><td>Gazebo a meglévő robotmodellel</td><td>A modell részben már megvan; nem kell nulláról kezdeni</td></tr>
+      <tr><td>Tanítás</td><td>A meglévő RTX 5080-as gép</td><td>Már üzemel, van rá kapacitás; a Jetson erre alkalmatlan</td></tr>
+      <tr><td>Üzemeltetés</td><td>Konténerek a szerveren, rendszerszolgáltatások a roboton</td><td>A roboton az automatikus indulás amúgy is hiányzik — ezt itt pótoljuk</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="fazisok">
+  <span class="eyebrow">10 — Fázisok</span>
+  <h2>Mit mikor építünk</h2>
+  <p class="sec-note">A cél, hogy minden fázis végén legyen valami, ami önmagában is használható — ne legyen olyan szakasz, aminek a végén még semmi nem működik.</p>
+
+  <figure class="sheet">
+    <div class="inner">
+<pre class="mermaid">
+%%{init:{'theme':'base','themeVariables':{'primaryColor':'#e9ebe7','primaryTextColor':'#16191d','primaryBorderColor':'#9aa0a6','lineColor':'#7a828a','fontFamily':'JetBrains Mono, ui-monospace, monospace','fontSize':'12px'}}}%%
+flowchart LR
+  F0["F0 · ALAPOZÁS<br/><small>robot nélkül is megy</small>"]
+  F1["F1 · GERINC<br/><small>L01–L03</small>"]
+  F2["F2 · TÉRKÉP<br/><small>L04–L05</small>"]
+  F3["F3 · LÁTÁS<br/><small>L06–L08</small>"]
+  F4["F4 · KAR ÉS KÜLDETÉS<br/><small>L09–L10</small>"]
+  F5["F5 · FLOTTA<br/><small>Pi-prototípus</small>"]
+
+  F0 --> F1 --> F2 --> F3 --> F4 --> F5
+
+  F0 -.- D0["protokoll, adatmodell,<br/>manifeszt-séma,<br/>tervező-felület mockkal,<br/>szimulátor felállítása"]
+  F1 -.- D1["Agent, biztonsági réteg,<br/>naplózás, első három szint,<br/>egy hallgató, helyi hálózat"]
+  F2 -.- D2["térkép-perzisztencia,<br/>küldetés-tervező élesben,<br/>foglalás és sor, több felhasználó"]
+  F3 -.- D3["képfeldolgozó csővezeték,<br/>címkéző felület,<br/>tanítási kör a GPU-gépen"]
+  F4 -.- D4["szem-kéz kalibráció,<br/>viselkedésfa-szerkesztő,<br/>pontozás, tanári konzol"]
+  F5 -.- D5["ROS 2 adapter,<br/>képesség-deklaráció igazolása<br/>második roboton"]
+
+  style F0 fill:#dde9ec,stroke:#2c6473
+  style F1 fill:#e9ebe7,stroke:#16191d,stroke-width:2px
+  style F4 fill:#f4e3d4,stroke:#c26520
+  style F5 fill:#f6e0dc,stroke:#a2453a
+</pre>
+    </div>
+    <figcaption><b>Ábra 11</b> <span>Hat fázis. Az F0 teljes egészében elvégezhető úgy, hogy a robot nincs is kéznél.</span></figcaption>
+  </figure>
+
+  <div class="callout key">
+    <span class="lbl">Javaslat a pilotra</span>
+    <p>Az első éles kipróbálás <b>ne az egész létra legyen</b>, hanem L01–L05 egy kis csoporttal. Ez már önmagában egy teljes értékű kurzus — kinematika, kalibráció, szabályozás, SLAM, navigáció —, és a saját térképre lerakott pontok bejárása látványos befejezés. A felső öt szint akkor épüljön, amikor az alsó öt már bizonyított éles oktatási helyzetben.</p>
+  </div>
+
+  <h3>Mit lehet most azonnal elkezdeni, robot nélkül</h3>
+  <ul class="tight">
+    <li>A manifeszt-séma és a Gateway-protokoll megtervezése — ez tisztán papírmunka és kódolás, hardver nélkül.</li>
+    <li>A térkép- és küldetéstervező felület megépítése statikus térképképpel. Ugyanez a komponens fog L03-ban és L05-ben is futni.</li>
+    <li>A szimulációs környezet felállítása a robotmodellel — így az L01–L03 fejlesztése is elindulhat.</li>
+    <li>A viselkedésfa-szerkesztő prototípusa, ál-képességekkel.</li>
+  </ul>
+</section>
+
+<section id="nyitott">
+  <span class="eyebrow">11 — Nyitott kérdések</span>
+  <h2>Amit meg kell néznünk a roboton</h2>
+  <p class="sec-note">Ez a terv néhány ponton feltételezésekkel él. Ezek nem döntik meg a koncepciót, de befolyásolják, mennyire lehet mély egy-egy szint. Ez a lista az első teendő, amint a robot újra kéznél van.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Kérdés</th><th>Miért számít</th><th>Ha nemleges a válasz</th></tr></thead>
+    <tbody>
+      <tr><td>Fogad-e az alváz <b>kerékszintű</b> sebességparancsot?</td><td>L01 valódi mélysége</td><td>A szint ellenőrző módban fut; a teljes élmény a szimulációban és a Pi-flottán lesz meg</td></tr>
+      <tr><td>Elérhetők-e a <b>nyers enkóder-tickek</b>?</td><td>L02 teljes kalibrációs lánca</td><td>Csak skálakorrekció a kész odometrián — gyengébb, de működik</td></tr>
+      <tr><td>Publikál-e az IMU nyers szögsebességet?</td><td>L02 fúziós feladat</td><td>Elmarad a fúziós rész</td></tr>
+      <tr><td>Van-e egyben URDF alvázra és karra?</td><td>Szimuláció és L09 TF-lánca</td><td>Meg kell építeni — nem nagy munka, de idő</td></tr>
+      <tr><td>Regisztrált-e a mélység- és a színkép?</td><td>L09 megfogási pontosság</td><td>Igazítást kell beépíteni, különben a kar mellényúl</td></tr>
+      <tr><td>Megvan-e a kamera kalibrációja?</td><td>L07 távolságbecslés, L09 visszavetítés</td><td>Kalibrálni kell sakktáblával — jó gyakorlat, de plusz lépés</td></tr>
+      <tr><td>Mennyi a valós üzemidő egy töltéssel?</td><td>Órarend és foglalási idősávok tervezése</td><td>Rövidebb sávok, vagy a meglévő automatikus dokkolás bevonása</td></tr>
+      <tr><td>Elég-e a 40 GB szabad hely?</td><td>Naplók és adathalmazok</td><td>Külső SSD, vagy minden napló azonnal a Gateway-re</td></tr>
+      <tr><td>Miért nem indul az RGB kamera?</td><td>L06–L09 mindegyike ezen áll</td><td>Külön diagnosztika — a felismert USB-beragadás gyanús első jelölt</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Kockázatok</h3>
+  <ul class="tight">
+    <li><b>Túlvállalás.</b> Tíz szint sok. A pilot legyen öt, és csak bizonyítás után bővítsünk.</li>
+    <li><b>Egy robot, sok hallgató.</b> A szimuláció ezt kezeli, de csak akkor, ha tényleg az első fázisokban megépül — utólag hozzátoldva nem fog működni.</li>
+    <li><b>Hardverkopás.</b> Kezdők vezetik. Tervezzünk pótalkatrészt és leállási időt, főleg a karra és a megfogóra.</li>
+    <li><b>Hálózati késleltetés.</b> Ezért van a biztonság a fedélzeten. A vezérlési kör soha ne menjen át a hálózaton.</li>
+    <li><b>Noetic támogatás vége.</b> A Jetson így marad, de új komponenst már ne kössünk hozzá — az Agent-réteg épp ezt a határvonalat őrzi.</li>
+  </ul>
+
+  <div class="callout key">
+    <span class="lbl">Összefoglalva</span>
+    <p>A koncepció működőképes, és a legfontosabb architekturális döntés a <b>manifesztvezérelt skill-modul</b> — ez teszi tíz szintet karbantarthatóvá, és ez az, ami később a Raspberry-flottát is beengedi ugyanabba a rendszerbe. A második legfontosabb a <b>szimuláció az első fázisokban</b>, mert enélkül egyetlen robot mellett nem lesz élvezhető a kurzus. Minden más ezekre épül.</p>
+  </div>
+</section>
+
+</main>
+</div>
+</div>
