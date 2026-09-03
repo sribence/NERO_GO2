@@ -1,0 +1,481 @@
+<title>Pickerbot Rendszerleltár</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#0f1216;
+  --surface:#171b21;
+  --card:#1b2129;
+  --card-hover:#212832;
+  --border:#2a313c;
+  --border-soft:#232a33;
+  --text:#e7ebf0;
+  --muted:#8f98a8;
+  --faint:#5c6472;
+  --accent:#5fc3d6;
+  --accent-dim:#3a5a63;
+  --accent-soft:rgba(95,195,214,0.12);
+  --warm:#e0a05c;
+  --warm-soft:rgba(224,160,92,0.13);
+  --good:#6bc98a;
+  --warning:#e0c25c;
+  --critical:#e06a6a;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#f3f2ee;
+    --surface:#fbfaf7;
+    --card:#ffffff;
+    --card-hover:#f4f2ec;
+    --border:#ddd8cd;
+    --border-soft:#e6e2d8;
+    --text:#20242a;
+    --muted:#5b6270;
+    --faint:#8b8f98;
+    --accent:#1f8fa3;
+    --accent-dim:#bfe3e9;
+    --accent-soft:rgba(31,143,163,0.10);
+    --warm:#b2661f;
+    --warm-soft:rgba(178,102,31,0.10);
+    --good:#2f8f56;
+    --warning:#a3801f;
+    --critical:#c14343;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#f3f2ee;
+  --surface:#fbfaf7;
+  --card:#ffffff;
+  --card-hover:#f4f2ec;
+  --border:#ddd8cd;
+  --border-soft:#e6e2d8;
+  --text:#20242a;
+  --muted:#5b6270;
+  --faint:#8b8f98;
+  --accent:#1f8fa3;
+  --accent-dim:#bfe3e9;
+  --accent-soft:rgba(31,143,163,0.10);
+  --warm:#b2661f;
+  --warm-soft:rgba(178,102,31,0.10);
+  --good:#2f8f56;
+  --warning:#a3801f;
+  --critical:#c14343;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{
+  max-width:1180px;
+  margin:0 auto;
+  padding:2.5rem 1.75rem 5rem;
+  display:flex;
+  flex-direction:column;
+  gap:2.75rem;
+}
+
+/* ---------- header ---------- */
+.masthead{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:1.5rem;
+  flex-wrap:wrap;
+  border-bottom:1px solid var(--border);
+  padding-bottom:1.5rem;
+}
+.masthead-id{
+  font-family:var(--mono);
+  font-size:0.72rem;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--accent);
+  margin:0 0 0.6rem;
+}
+h1{
+  font-family:var(--mono);
+  font-weight:600;
+  font-size:clamp(1.6rem,3.4vw,2.3rem);
+  margin:0 0 0.5rem;
+  text-wrap:balance;
+  letter-spacing:-0.01em;
+}
+.masthead p{
+  margin:0;
+  color:var(--muted);
+  max-width:52ch;
+  font-size:0.95rem;
+}
+.host-tag{
+  font-family:var(--mono);
+  font-size:0.8rem;
+  color:var(--muted);
+  text-align:right;
+  display:flex;
+  flex-direction:column;
+  gap:0.3rem;
+}
+.host-tag .ip{color:var(--text); font-weight:600;}
+.host-tag .dot{color:var(--good);}
+
+/* ---------- stat strip ---------- */
+.stats{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:1px;
+  background:var(--border);
+  border:1px solid var(--border);
+  border-radius:10px;
+  overflow:hidden;
+}
+.stat{
+  background:var(--surface);
+  padding:1rem 1.1rem;
+  display:flex;
+  flex-direction:column;
+  gap:0.35rem;
+}
+.stat .label{
+  font-family:var(--mono);
+  font-size:0.66rem;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--faint);
+}
+.stat .value{
+  font-family:var(--mono);
+  font-size:1.02rem;
+  font-weight:600;
+  color:var(--text);
+}
+.stat .sub{font-size:0.76rem; color:var(--muted);}
+
+/* ---------- section heading ---------- */
+.section-head{
+  display:flex;
+  align-items:baseline;
+  gap:0.9rem;
+  margin-bottom:1.1rem;
+}
+.section-head h2{
+  font-family:var(--mono);
+  font-size:1.05rem;
+  font-weight:600;
+  margin:0;
+  color:var(--text);
+}
+.section-head .tag{
+  font-family:var(--mono);
+  font-size:0.7rem;
+  color:var(--faint);
+  letter-spacing:0.08em;
+}
+.section-head::after{
+  content:"";
+  flex:1;
+  height:1px;
+  background:var(--border);
+}
+
+/* ---------- storage ---------- */
+.storage-bar{
+  display:flex;
+  width:100%;
+  height:34px;
+  border-radius:6px;
+  overflow:hidden;
+  border:1px solid var(--border);
+}
+.storage-bar span{height:100%;}
+.storage-legend{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(190px,1fr));
+  gap:0.5rem 1.2rem;
+  margin-top:1rem;
+  font-family:var(--mono);
+  font-size:0.78rem;
+}
+.storage-legend li{
+  list-style:none;
+  display:flex;
+  align-items:center;
+  gap:0.5rem;
+  color:var(--muted);
+}
+.storage-legend li b{
+  color:var(--text);
+  font-weight:600;
+  font-variant-numeric:tabular-nums;
+  margin-left:auto;
+}
+.swatch{width:10px;height:10px;border-radius:2px;flex:none;}
+.storage-note{
+  margin-top:0.9rem;
+  font-size:0.85rem;
+  color:var(--muted);
+}
+.storage-note b{color:var(--warning); font-weight:600;}
+
+/* ---------- domain cards ---------- */
+.domains{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:1.1rem;
+}
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:1.3rem 1.4rem 1.4rem;
+  display:flex;
+  flex-direction:column;
+  gap:0.85rem;
+  transition:border-color .15s ease, background .15s ease;
+}
+.card:hover{border-color:var(--accent-dim); background:var(--card-hover);}
+.card-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:0.75rem;
+}
+.card-top h3{
+  font-family:var(--mono);
+  font-size:0.98rem;
+  margin:0;
+  font-weight:600;
+}
+.card-top .path{
+  display:block;
+  font-family:var(--mono);
+  font-size:0.72rem;
+  color:var(--faint);
+  margin-top:0.25rem;
+}
+.badge{
+  font-family:var(--mono);
+  font-size:0.65rem;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  padding:0.22rem 0.55rem;
+  border-radius:99px;
+  white-space:nowrap;
+  flex:none;
+}
+.badge.core{background:var(--accent-soft); color:var(--accent);}
+.badge.auto{background:var(--warm-soft); color:var(--warm);}
+.card p.desc{
+  margin:0;
+  font-size:0.87rem;
+  color:var(--muted);
+}
+.pkglist{
+  display:flex;
+  flex-wrap:wrap;
+  gap:0.4rem;
+  margin-top:0.1rem;
+}
+.pkg{
+  font-family:var(--mono);
+  font-size:0.72rem;
+  background:var(--surface);
+  border:1px solid var(--border-soft);
+  color:var(--text);
+  padding:0.22rem 0.5rem;
+  border-radius:5px;
+}
+.pkg.hot{border-color:var(--accent-dim); color:var(--accent);}
+
+/* ---------- autonomy callout ---------- */
+.callout{
+  background:linear-gradient(155deg, var(--warm-soft), transparent 60%), var(--card);
+  border:1px solid var(--border);
+  border-left:3px solid var(--warm);
+  border-radius:10px;
+  padding:1.3rem 1.5rem;
+  display:flex;
+  flex-direction:column;
+  gap:0.6rem;
+}
+.callout h3{
+  font-family:var(--mono);
+  font-size:0.95rem;
+  margin:0;
+  color:var(--warm);
+  display:flex;
+  align-items:center;
+  gap:0.5rem;
+}
+.callout p{margin:0; font-size:0.9rem; color:var(--text);}
+.callout ul{margin:0.3rem 0 0; padding-left:1.15rem; font-size:0.87rem; color:var(--muted); display:flex; flex-direction:column; gap:0.3rem;}
+.callout li b{color:var(--text); font-weight:600;}
+
+/* ---------- footer ---------- */
+footer{
+  border-top:1px solid var(--border);
+  padding-top:1.2rem;
+  font-family:var(--mono);
+  font-size:0.72rem;
+  color:var(--faint);
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:0.5rem;
+}
+
+@media (max-width:640px){
+  .masthead{flex-direction:column; align-items:flex-start;}
+  .host-tag{text-align:left;}
+}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <p class="masthead-id">wheeltec@192.168.0.100 · SSH felmérés</p>
+      <h1>Pickerbot Mini — rendszerleltár</h1>
+      <p>Teljes fájlrendszer- és szoftverfelmérés a Jetson fedélzeti számítógépről, mielőtt ráépítenénk a saját fejlesztést. A gyártó (Wheeltec) jóval többet telepített rá, mint amit a robot alapfunkciója használ.</p>
+    </div>
+    <div class="host-tag">
+      <span><span class="dot">●</span> él és válaszol</span>
+      <span class="ip">192.168.0.100</span>
+      <span>wheeltec / dongguan</span>
+    </div>
+  </header>
+
+  <section class="stats">
+    <div class="stat"><span class="label">Platform</span><span class="value">Jetson Xavier NX</span><span class="sub">Tegra R35.6.1</span></div>
+    <div class="stat"><span class="label">JetPack / L4T</span><span class="value">L4T 35.6.1</span><span class="sub">nvidia-l4t-core</span></div>
+    <div class="stat"><span class="label">OS</span><span class="value">Ubuntu 20.04.6</span><span class="sub">kernel 5.10 tegra</span></div>
+    <div class="stat"><span class="label">ROS</span><span class="value">Noetic</span><span class="sub">ROS 1, catkin</span></div>
+    <div class="stat"><span class="label">Python / CUDA</span><span class="value">3.8.10 / CUDA 11.4</span><span class="sub">torch, tensorflow nv build</span></div>
+    <div class="stat"><span class="label">Lemez</span><span class="value">182G / 233G</span><span class="sub">83% tele, 40G szabad</span></div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Tárhely-eloszlás</h2><span class="tag">/ · du -sh</span></div>
+    <div class="storage-bar">
+      <span style="width:36%; background:#5c4a3a;" title="/timeshift 84G"></span>
+      <span style="width:20%; background:var(--accent);" title="/home 46G"></span>
+      <span style="width:12%; background:var(--accent-dim);" title="/usr 28G"></span>
+      <span style="width:3%; background:var(--warm);" title="/snap 6.7G"></span>
+      <span style="width:2%; background:var(--faint);" title="/swap+/var+/opt 10G"></span>
+      <span style="width:25%; background:var(--border-soft);" title="szabad 40G"></span>
+    </div>
+    <ul class="storage-legend">
+      <li><span class="swatch" style="background:#5c4a3a;"></span>/timeshift (rendszer-visszaállítási pontok) <b>84G</b></li>
+      <li><span class="swatch" style="background:var(--accent);"></span>/home/wheeltec <b>46G</b></li>
+      <li><span class="swatch" style="background:var(--accent-dim);"></span>/usr (rendszer+ROS csomagok) <b>28G</b></li>
+      <li><span class="swatch" style="background:var(--warm);"></span>/snap (GNOME, Chromium) <b>6.7G</b></li>
+      <li><span class="swatch" style="background:var(--faint);"></span>/swap + /var + /opt <b>10.1G</b></li>
+      <li><span class="swatch" style="background:var(--border-soft);"></span>szabad hely <b>40G</b></li>
+    </ul>
+    <p class="storage-note">Legnagyobb <b>home</b>-mappák: Anaconda3 (8.3G) · autoware_shared_dir (6.2G) · Autoware (4.8G) · opencv-3.4.5 forrás (4.0G) · wheeltec_robot workspace (3.6G) · darknet-master (1.4G). A <b>/timeshift 84G</b> valószínűleg rendszer-visszaállítási pontokat halmoz, ha helyet kell felszabadítani, ott érdemes elsőként keresni.</p>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Gyártói szoftverstack funkció szerint</h2><span class="tag">/home/wheeltec · catkin workspace-ek</span></div>
+    <div class="domains">
+
+      <div class="card">
+        <div class="card-top">
+          <div><h3>Robot-alap &amp; érzékelők</h3><span class="path">~/wheeltec_robot/src (36 csomag)</span></div>
+          <span class="badge core">core</span>
+        </div>
+        <p class="desc">A robotalváz bringup-ja, motor/IMU/GPS driverek, hang- és mozgáskövetés. Ez indítja el a robotot minden más réteg alatt.</p>
+        <div class="pkglist">
+          <span class="pkg hot">turn_on_wheeltec_robot</span>
+          <span class="pkg hot">auto_recharge_ros</span>
+          <span class="pkg">wheeltec_joy_control</span>
+          <span class="pkg">simple_follower (line/laser/visual/radar/face)</span>
+          <span class="pkg">kcf_track</span>
+          <span class="pkg">bodyreader</span>
+          <span class="pkg">wheeltec_gps_driver (dual RTK)</span>
+          <span class="pkg">3× IMU driver (hipnuc/yesense/fdilink)</span>
+          <span class="pkg">wheeltec_mic_aiui + xf_mic_asr_offline_circle</span>
+          <span class="pkg">tts_make</span>
+          <span class="pkg">wheeltec_radar</span>
+          <span class="pkg">wheeltec_multi</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <div><h3>Robotkar &amp; pick-and-place</h3><span class="path">~/wheeltec_arm/src (13 csomag)</span></div>
+          <span class="badge core">core</span>
+        </div>
+        <p class="desc">MoveIt-alapú mozgástervezés a karhoz, több alváz-variánsra (4WD/mec/tank, négy- és hattengelyes) előre konfigurálva — ez adja a "picker" funkciót.</p>
+        <div class="pkglist">
+          <span class="pkg hot">wheeltec_arm_pick</span>
+          <span class="pkg">arm_demo (cartesian/IK/FK)</span>
+          <span class="pkg">wheeltec_tracker_pkg</span>
+          <span class="pkg">wheeltec_arm_rc</span>
+          <span class="pkg">mini_mec_six_arm_moveit_config</span>
+          <span class="pkg">mini_4wd_four_arm_moveit_config</span>
+          <span class="pkg">+ 5 további MoveIt config</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <div><h3>LiDAR &amp; SLAM</h3><span class="path">~/wheeltec_lidar, ~/cartographer_ws</span></div>
+          <span class="badge core">core</span>
+        </div>
+        <p class="desc">Térképezés és lokalizáció két SLAM-motorral egyszerre telepítve: a könnyebb gmapping és a nehézsúlyú Google Cartographer.</p>
+        <div class="pkglist">
+          <span class="pkg">lslidar_cx_driver</span>
+          <span class="pkg">rplidar_ros</span>
+          <span class="pkg hot">orb_slam_2_ros (vizuális SLAM)</span>
+          <span class="pkg">openslam_gmapping</span>
+          <span class="pkg hot">cartographer + ceres-solver</span>
+          <span class="pkg">rrt_exploration (autonóm térképfelfedezés)</span>
+          <span class="pkg">teb_local_planner (útvonaltervező)</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-top">
+          <div><h3>Látás &amp; AI-detekció</h3><span class="path">~/darknet-master, ~/yolov5-*, ROS csomópontok</span></div>
+          <span class="badge core">core</span>
+        </div>
+        <p class="desc">Három párhuzamos objektumfelismerő stack (Darknet, YOLOv5 PyTorch, YOLOv5 TF2) plusz egy LLM-chat integráció ROS-ba kötve.</p>
+        <div class="pkglist">
+          <span class="pkg">wheeltec_yolo_action</span>
+          <span class="pkg">darknet-master</span>
+          <span class="pkg">yolov5-pytorch / yolov5-tf2</span>
+          <span class="pkg">ros_tensorflow</span>
+          <span class="pkg hot">ollama_chat_ros (LLM chat node)</span>
+          <span class="pkg">ros_astra_camera (mélységkamera)</span>
+          <span class="pkg">usb_cam</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Önvezető funkció — igen, telepítve van</h2><span class="tag">~/jetracer · ~/Autoware</span></div>
+    <div class="callout">
+      <h3>⚠ Két különálló önvezető stack él egymás mellett</h3>
+      <ul>
+        <li><b>JetRacer</b> (~/jetracer, 606M) — NVIDIA kamera-alapú "road following" keretrendszer. A <code>notebooks/</code> alatt <b>betanított neurális háló modellek</b> vannak (<code>road_following_model_*.pth</code>, legfrissebb: 828_1), tehát ezen ténylegesen tanítottak és teszteltek sávkövetést. Jupyter notebookokból indítható, kamerakép → kormányszög regresszió.</li>
+        <li><b>Autoware.AI</b> (~/Autoware, 4.8G + 6.2G megosztott adat) — teljes ipari önvezető-kutatási stack: LiDAR objektumdetekció (Apollo CNN-seg, PointPillars), sávfelismerés, közlekedésilámpa-felismerés, NDT/EKF lokalizáció, útvonaltervezés (A*, lattice, pure pursuit, MPC follower). Ez <b>gyári referencia/demo build</b>, több build-log 2025.05–10 közötti dátummal — nincs jele, hogy erre a konkrét alvázra hangolták volna.</li>
+      </ul>
+      <p>Ha ez a fejlesztési irány, a JetRacer a reálisabb kiindulópont (kis, kamera-only, már van betanított modellje) — az Autoware méreténél és komplexitásánál fogva inkább kutatási referenciaként van fent, nem üzemi célra ezen a mini alvázon.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>felmérés: du -sh, find -name package.xml, dpkg-query, /etc/os-release</span>
+    <span>3334 apt csomag · docker 26.1.3 telepítve</span>
+  </footer>
+
+</div>

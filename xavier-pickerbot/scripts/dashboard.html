@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<title>Pickerbot Mini — élő irányítópult</title>
+<script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+  :root{
+    --bg:#0f1216; --surface:#171b21; --card:#1b2129; --border:#2a313c;
+    --text:#e7ebf0; --muted:#8f98a8; --faint:#5c6472;
+    --accent:#5fc3d6; --warm:#e0a05c; --good:#6bc98a; --bad:#e06a6a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+  header {
+    display:flex; align-items:center; gap:1rem; padding:0.8rem 1.2rem;
+    border-bottom:1px solid var(--border); background:var(--surface);
+  }
+  header h1 { font-size:0.95rem; margin:0; font-weight:600; }
+  #globalStatus { font-size:0.78rem; padding:0.25rem 0.6rem; border-radius:99px; border:1px solid var(--border); }
+  #globalStatus.ok { color:var(--good); border-color:var(--good); }
+  #globalStatus.err { color:var(--bad); border-color:var(--bad); }
+  .grid {
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap:1px; background:var(--border);
+  }
+  .panel { background:var(--card); display:flex; flex-direction:column; min-height:340px; }
+  .panel.big { grid-column: span 2; min-height: 520px; }
+  .panel-head {
+    display:flex; justify-content:space-between; align-items:center;
+    padding:0.5rem 0.8rem; border-bottom:1px solid var(--border);
+    font-size:0.78rem; color:var(--muted); letter-spacing:0.04em; text-transform:uppercase;
+  }
+  .panel-head .pill { font-size:0.68rem; color:var(--faint); text-transform:none; letter-spacing:0; }
+  .panel-body { flex:1; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .panel-body img { max-width:100%; max-height:100%; display:block; }
+  .panel-body canvas { display:block; }
+  .hint { position:absolute; bottom:6px; left:8px; font-size:0.68rem; color:var(--faint); background:rgba(15,18,22,0.7); padding:2px 6px; border-radius:4px; }
+  .stat { position:absolute; top:6px; left:8px; font-size:0.7rem; color:var(--accent); background:rgba(15,18,22,0.7); padding:2px 6px; border-radius:4px; }
+
+  .toggle { display:inline-flex; align-items:center; gap:0.4rem; cursor:pointer; user-select:none; }
+  .toggle input { display:none; }
+  .toggle .sw {
+    width:28px; height:16px; border-radius:99px; background:var(--border);
+    position:relative; transition:background .15s ease; flex:none;
+  }
+  .toggle .sw::after {
+    content:""; position:absolute; top:2px; left:2px; width:12px; height:12px;
+    border-radius:50%; background:var(--faint); transition:transform .15s ease, background .15s ease;
+  }
+  .toggle input:checked + .sw { background:var(--accent-soft, rgba(95,195,214,0.25)); }
+  .toggle input:checked + .sw::after { transform:translateX(12px); background:var(--accent); }
+  .toggle .lbl { font-size:0.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em; }
+  .toggle.pending .sw::after { background:var(--warm); }
+  .legend { display:flex; gap:0.9rem; font-size:0.7rem; color:var(--muted); }
+  .legend span.dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Pickerbot Mini — élő irányítópult</h1>
+  <span id="globalStatus">csatlakozás...</span>
+</header>
+
+<div class="grid">
+
+  <div class="panel">
+    <div class="panel-head">
+      <span>RGB kamera (Astra)</span>
+      <label class="toggle" id="toggleColorWrap">
+        <input type="checkbox" id="toggleColor" checked>
+        <span class="sw"></span><span class="lbl">be</span>
+      </label>
+    </div>
+    <div class="panel-body"><img id="rgbImg" src=""></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><span>C70 kamera (kar)</span><span class="pill">/usb_cam/image_raw</span></div>
+    <div class="panel-body"><img id="c70Img" src=""></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <span>Mélységkamera</span>
+      <label class="toggle" id="toggleDepthWrap">
+        <input type="checkbox" id="toggleDepth" checked>
+        <span class="sw"></span><span class="lbl">be</span>
+      </label>
+    </div>
+    <div class="panel-body">
+      <canvas id="depthCanvas" width="640" height="480"></canvas>
+      <span class="stat" id="depthStat">-</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><span>Infra (IR)</span><span class="pill" style="color:var(--bad);">élő kapcsoló letiltva</span></div>
+    <div class="panel-body" style="color:var(--faint); font-size:0.78rem; text-align:center; padding:1rem;">
+      Az IR stream élő bekapcsolása driver-szintű összeomlást okoz<br>(<code>glog FATAL: stream_video_mode_.count(stream_index)</code>) —<br>ezt teszteltük, USB-resetet igényelt utána.<br>Csak külön relaunch-csal, más <code>camera_mode</code>-dal érhető el biztonságosan.
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><span>LiDAR — felülnézet</span><span class="pill">/scan</span></div>
+    <div class="panel-body">
+      <canvas id="lidarCanvas" width="500" height="500"></canvas>
+      <span class="stat" id="lidarStat">-</span>
+    </div>
+  </div>
+
+  <div class="panel big">
+    <div class="panel-head">
+      <span>3D point cloud + LiDAR</span>
+      <span class="legend">
+        <span><span class="dot" style="background:#5fc3d6"></span>depth</span>
+        <span><span class="dot" style="background:#e0a05c"></span>lidar</span>
+      </span>
+    </div>
+    <div class="panel-body">
+      <div id="pc3d" style="width:100%; height:100%;"></div>
+      <span class="stat" id="pcStat">-</span>
+      <span class="hint">bal gomb + húzás: forgatás · görgő: zoom · jobb gomb + húzás: eltolás</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ROBOT_IP = "192.168.0.100";
+const WEB_VIDEO_PORT = 8080;
+const ROSBRIDGE_PORT = 9090;
+
+// ---------- image streams via web_video_server (csak sima 8-bit szinű képekhez jó) ----------
+document.getElementById('rgbImg').src = `http://${ROBOT_IP}:${WEB_VIDEO_PORT}/stream?topic=/camera/rgb/image_raw`;
+document.getElementById('c70Img').src = `http://${ROBOT_IP}:${WEB_VIDEO_PORT}/stream?topic=/usb_cam/image_raw`;
+
+// ---------- rosbridge connection ----------
+const ros = new ROSLIB.Ros({ url: `ws://${ROBOT_IP}:${ROSBRIDGE_PORT}` });
+const statusEl = document.getElementById('globalStatus');
+ros.on('connection', () => { statusEl.textContent = "rosbridge: csatlakozva"; statusEl.className = "ok"; });
+ros.on('error', (e) => { statusEl.textContent = "rosbridge hiba"; statusEl.className = "err"; });
+ros.on('close', () => { statusEl.textContent = "rosbridge: lezárva"; statusEl.className = "err"; });
+
+// rosbridge base64 uint8[] payloadokat ad vissza string formában -> ezt Uint8Array-re kell bontani
+function base64ToBytes(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// ---------- Depth kép saját canvas-renderrel (web_video_server nem tud 16UC1-et bgr8-ra konvertálni) ----------
+const depthTopic = new ROSLIB.Topic({
+  ros, name: '/camera/depth/image_raw', messageType: 'sensor_msgs/Image',
+  throttle_rate: 200, queue_length: 1
+});
+const dCanvas = document.getElementById('depthCanvas');
+const dCtx = dCanvas.getContext('2d');
+
+depthTopic.subscribe(function(msg) {
+  if (msg.encoding !== '16UC1') return;
+  const bytes = base64ToBytes(msg.data);
+  const dv = new DataView(bytes.buffer);
+  const little = !msg.is_bigendian;
+  const w = msg.width, h = msg.height;
+  if (dCanvas.width !== w) dCanvas.width = w;
+  if (dCanvas.height !== h) dCanvas.height = h;
+
+  const imgData = dCtx.createImageData(w, h);
+  const MAX_MM = 4000; // 4 m felett fehér/telített
+  for (let i = 0, p = 0; p < w * h; p++, i += 2) {
+    const mm = dv.getUint16(i, little);
+    let v;
+    if (mm === 0) { v = 0; } // nincs adat -> fekete
+    else { v = 255 - Math.min(255, Math.round((mm / MAX_MM) * 255)); }
+    const o = p * 4;
+    imgData.data[o] = v * 0.55;
+    imgData.data[o + 1] = v * 0.85;
+    imgData.data[o + 2] = v;
+    imgData.data[o + 3] = 255;
+  }
+  dCtx.putImageData(imgData, 0, 0);
+  document.getElementById('depthStat').textContent = `${w}x${h}`;
+});
+
+// ---------- kamera mód kapcsolók (élő SetBool szolgáltatások, driver-szintű, nem relaunch) ----------
+function makeToggleService(name) {
+  return new ROSLIB.Service({ ros, name, serviceType: 'std_srvs/SetBool' });
+}
+const svcColor = makeToggleService('/camera/toggle_color');
+const svcDepth = makeToggleService('/camera/toggle_depth');
+// /camera/toggle_ir SZÁNDÉKOSAN nincs bekötve: élesben teszteltük, a driver ('astra_camera')
+// glog FATAL hibával összeomlik ("stream_video_mode_.count(stream_index)"), USB-resetet igényel utána.
+
+function wireToggle(checkboxId, wrapId, service, labelOnText, labelOffText, onChange) {
+  const cb = document.getElementById(checkboxId);
+  const wrap = document.getElementById(wrapId);
+  const lbl = wrap.querySelector('.lbl');
+  cb.addEventListener('change', () => {
+    wrap.classList.add('pending');
+    const req = new ROSLIB.ServiceRequest({ data: cb.checked });
+    service.callService(req, (res) => {
+      wrap.classList.remove('pending');
+      lbl.textContent = cb.checked ? labelOnText : labelOffText;
+      if (onChange) onChange(cb.checked, res);
+    }, (err) => {
+      wrap.classList.remove('pending');
+      cb.checked = !cb.checked; // sikertelen hívás -> visszaállítjuk
+      lbl.textContent = cb.checked ? labelOnText : labelOffText;
+      console.error('toggle hiba:', service.name, err);
+    });
+  });
+}
+
+wireToggle('toggleColor', 'toggleColorWrap', svcColor, 'be', 'ki', (on) => {
+  document.getElementById('rgbImg').src = on
+    ? `http://${ROBOT_IP}:${WEB_VIDEO_PORT}/stream?topic=/camera/rgb/image_raw&_=${Date.now()}`
+    : '';
+});
+wireToggle('toggleDepth', 'toggleDepthWrap', svcDepth, 'be', 'ki');
+
+// ---------- 2D LiDAR view ----------
+const scanTopic = new ROSLIB.Topic({ ros, name: '/scan', messageType: 'sensor_msgs/LaserScan' });
+const lc = document.getElementById('lidarCanvas');
+const lctx = lc.getContext('2d');
+const lcx = lc.width / 2, lcy = lc.height / 2;
+const PPM = 90;
+
+function drawScan(msg) {
+  lctx.clearRect(0, 0, lc.width, lc.height);
+  lctx.strokeStyle = "#232a33";
+  lctx.fillStyle = "#5c6472";
+  lctx.font = "10px monospace";
+  for (let r = 1; r <= 4; r++) {
+    lctx.beginPath();
+    lctx.arc(lcx, lcy, r * PPM, 0, Math.PI * 2);
+    lctx.stroke();
+    lctx.fillText(r + "m", lcx + 3, lcy - r * PPM);
+  }
+  lctx.fillStyle = "#e0a05c";
+  lctx.beginPath(); lctx.arc(lcx, lcy, 4, 0, Math.PI * 2); lctx.fill();
+
+  lctx.fillStyle = "#5fc3d6";
+  let valid = 0;
+  const n = msg.ranges.length;
+  for (let i = 0; i < n; i++) {
+    const range = msg.ranges[i];
+    if (!isFinite(range) || range < msg.range_min || range > msg.range_max) continue;
+    const angle = msg.angle_min + i * msg.angle_increment;
+    const x = lcx + range * Math.cos(angle) * PPM;
+    const y = lcy - range * Math.sin(angle) * PPM;
+    lctx.beginPath(); lctx.arc(x, y, 1.6, 0, Math.PI * 2); lctx.fill();
+    valid++;
+  }
+  document.getElementById('lidarStat').textContent = `${valid}/${n} pont`;
+  updateLidar3D(msg);
+}
+scanTopic.subscribe(drawScan);
+
+// ---------- TF: laser -> camera_depth_optical_frame (a LiDAR 3D-be vetítéséhez) ----------
+// Fix mechanikai szerelés (LiDAR<->kamera nem mozog egymáshoz képest), ezért nem élő TF-et
+// kérünk (a ROSLIB.TFClient alapból csak a /tf-et hallgatja, a robot statikus geometriája
+// viszont /tf_static-on megy, így sosem kapnánk adatot) - a mért értéket beégetjük:
+//   `rosrun tf tf_echo laser camera_depth_optical_frame` -> translation [0.198,-0.000,0.454], quat [-0.5,-0.5,0.5,0.5]
+const laserToCamera = {
+  quat: new THREE.Quaternion(-0.5, -0.5, 0.5, 0.5),
+  pos: new THREE.Vector3(0.198, -0.000, 0.454)
+};
+
+function updateLidar3D(msg) {
+  if (!laserToCamera) return; // meg nem erkezett TF, egyelore ures marad a lidar overlay
+  const n = msg.ranges.length;
+  const tmp = new THREE.Vector3();
+  const positions = new Float32Array(n * 3);
+  let w = 0;
+  for (let i = 0; i < n; i++) {
+    const range = msg.ranges[i];
+    if (!isFinite(range) || range < msg.range_min || range > msg.range_max) continue;
+    const angle = msg.angle_min + i * msg.angle_increment;
+    // pont a laser sikjaban (z=0), majd a kamera keretebe forgatva+eltolva
+    tmp.set(range * Math.cos(angle), range * Math.sin(angle), 0);
+    tmp.applyQuaternion(laserToCamera.quat).add(laserToCamera.pos);
+    // ugyanaz a megjelenitesi tengely-tukrozes mint a depth pontfelhonel
+    positions[w * 3 + 0] = tmp.x;
+    positions[w * 3 + 1] = -tmp.y;
+    positions[w * 3 + 2] = -tmp.z;
+    w++;
+  }
+  lidarGeom.setAttribute('position', new THREE.BufferAttribute(positions.subarray(0, w * 3), 3));
+  lidarGeom.attributes.position.needsUpdate = true;
+  lidarGeom.computeBoundingSphere();
+}
+
+// ---------- 3D point cloud view ----------
+const pcContainer = document.getElementById('pc3d');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x12161c);
+
+const camera3d = new THREE.PerspectiveCamera(60, 1, 0.05, 30);
+camera3d.position.set(0, 0, 1.2);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio || 1);
+pcContainer.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera3d, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.rotateSpeed = 0.6;
+
+const axes = new THREE.AxesHelper(0.3);
+scene.add(axes);
+
+function resizeRenderer() {
+  const w = pcContainer.clientWidth, h = pcContainer.clientHeight;
+  renderer.setSize(w, h);
+  camera3d.aspect = w / h;
+  camera3d.updateProjectionMatrix();
+}
+window.addEventListener('resize', resizeRenderer);
+setTimeout(resizeRenderer, 50);
+
+let pointsGeom = new THREE.BufferGeometry();
+let pointsMat = new THREE.PointsMaterial({ size: 0.008, vertexColors: true });
+let pointsObj = new THREE.Points(pointsGeom, pointsMat);
+scene.add(pointsObj);
+
+// LiDAR pontfelhő ugyanabban a jelenetben, narancssárgával, a kamera keretébe transzformálva
+let lidarGeom = new THREE.BufferGeometry();
+let lidarMat = new THREE.PointsMaterial({ size: 0.012, color: 0xe0a05c });
+let lidarObj = new THREE.Points(lidarGeom, lidarMat);
+scene.add(lidarObj);
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera3d);
+}
+animate();
+
+// PointCloud2 parsing (subsampled for performance), throttled subscription
+const STRIDE = 6; // csak minden 6. pontot dolgozzuk fel
+
+const pcTopic = new ROSLIB.Topic({
+  ros,
+  name: '/camera/depth/points',
+  messageType: 'sensor_msgs/PointCloud2',
+  throttle_rate: 400,
+  queue_length: 1
+});
+
+pcTopic.subscribe(function(msg) {
+  const fields = {};
+  for (const f of msg.fields) fields[f.name] = f;
+  if (!fields.x || !fields.y || !fields.z) return;
+
+  const bytes = base64ToBytes(msg.data);
+  const dv = new DataView(bytes.buffer);
+  const little = !msg.is_bigendian;
+  const step = msg.point_step;
+  const totalPoints = Math.floor(bytes.length / step);
+
+  const outCount = Math.floor(totalPoints / STRIDE);
+  const positions = new Float32Array(outCount * 3);
+  const colors = new Float32Array(outCount * 3);
+
+  let hasColor = !!fields.rgb;
+  let w = 0;
+  for (let i = 0, j = 0; i < totalPoints; i += STRIDE) {
+    const base = i * step;
+    const x = dv.getFloat32(base + fields.x.offset, little);
+    const y = dv.getFloat32(base + fields.y.offset, little);
+    const z = dv.getFloat32(base + fields.z.offset, little);
+    if (!isFinite(x) || !isFinite(y) || !isFinite(z)) continue;
+
+    // ROS optical frame (x jobbra, y le, z előre) -> three.js (x jobbra, y fel, z hátra)
+    positions[j * 3 + 0] = x;
+    positions[j * 3 + 1] = -y;
+    positions[j * 3 + 2] = -z;
+
+    if (hasColor) {
+      const rgbFloat = dv.getFloat32(base + fields.rgb.offset, little);
+      const buf = new ArrayBuffer(4);
+      new Float32Array(buf)[0] = rgbFloat;
+      const rgbBytes = new Uint8Array(buf);
+      colors[j * 3 + 0] = rgbBytes[2] / 255;
+      colors[j * 3 + 1] = rgbBytes[1] / 255;
+      colors[j * 3 + 2] = rgbBytes[0] / 255;
+    } else {
+      const depthNorm = Math.min(1, z / 3);
+      colors[j * 3 + 0] = 0.37 + depthNorm * 0.3;
+      colors[j * 3 + 1] = 0.76 - depthNorm * 0.3;
+      colors[j * 3 + 2] = 0.84;
+    }
+    j++;
+    w = j;
+  }
+
+  pointsGeom.setAttribute('position', new THREE.BufferAttribute(positions.subarray(0, w * 3), 3));
+  pointsGeom.setAttribute('color', new THREE.BufferAttribute(colors.subarray(0, w * 3), 3));
+  pointsGeom.attributes.position.needsUpdate = true;
+  pointsGeom.attributes.color.needsUpdate = true;
+  pointsGeom.computeBoundingSphere();
+
+  document.getElementById('pcStat').textContent = `${w} / ${totalPoints} pont (1/${STRIDE} minta)`;
+});
+</script>
+</body>
+</html>
