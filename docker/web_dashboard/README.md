@@ -2,6 +2,8 @@
 
 A NERO_GO2 fő webes vezérlőpultja — élő kamera (a `webrtc_bridge`-ből proxyolva), telemetria, virtuális joystick, akció-gombok (állj fel, feküdj le, ülj, integess, szív).
 
+**Lásd még:** [`/showcase`](#showcase-3d-digitális-iker) — 3D "digitális iker" bemutató-nézet, ld. lent.
+
 Architektúra-minta ([go2_dashboard](https://github.com/bentheperson1/go2_dashboard) by bentheperson1, MIT) alapján, de **nem másolat** — friss implementáció, két külön szolgáltatásra bontva:
 
 - **`webrtc_bridge`** (5001-es port) — kamera/LiDAR/health, a hivatalos WebRTC-protokollon
@@ -47,6 +49,17 @@ INFO DDS/SportClient ready
 data: {"voltage": 27.71, "current": 0.65, "avg_temp": 46.5, "velocity_x": 0.0, ..., "sdk_ready": true, "bridge_connected": true}
 ```
 `/`, `/data` (SSE telemetria), `/camera_feed` (webrtc_bridge proxy) mind működnek.
+
+## `/showcase` — 3D digitális iker
+
+2026-09-03, robot nélkül épült és tesztelve a `mock_robot` stackkel (ld. [docs/14-capability-showcase-projekt.md](../../docs/14-capability-showcase-projekt.md)) — élő, animált 3D vázmodell a robotról (12 forgó ízület, valós Unitree URDF-geometriával), futurisztikus HUD-stílusú telemetria-panelekkel (ízület-hőmérséklet, ízület-terhelés, IMU, táp). 45-90+ perces órai/prezentációs bemutatóra szánva.
+
+- **Geometria forrása:** hivatalos Unitree Go2 URDF (`unitreerobotics/unitree_ros/robots/go2_description/`) — a DAE-mesh-eket NEM töltjük be (egyszerűség), helyette a valós ízület-offszetekkel/tengelyekkel/hosszakkal épített primitív-váz three.js-ben.
+- **Adatforrás:** `app.py` `dog_data["motor_q"/"motor_tau"/"motor_temp"]` (12-elemű tömbök, `MOTOR_NAMES` sorrendben: FR/FL/RR/RL × hip/thigh/calf) — a valós DDS-ágban (`_init_sdk`) `LowState_.motor_state[].q/.tau_est/.temperature`-ből töltve, a mock-ágban (`_init_mock_sdk`) egy szintetikus "áll → jár → áll" gait-ciklusból.
+- **Frissítési ütem:** külön `/showcase_data` SSE endpoint, ~10 Hz (a fő `/data` 1 Hz-es, mert minden tick-ben lekérdezi a `webrtc_bridge`-et is — a showcase-nek ez nem kell).
+- **Kamera:** automatikus, lassú körbeforgás — kiosk-jellegű bemutatóhoz nem kell interaktív vezérlés (OrbitControls.js egyébként sem érhető el megbízhatóan cdnjs-en erre a three.js verzióra).
+
+**Élesben tesztelve mock-adaton**, böngészőben — a valós robot-adattal (`_init_sdk` ág) még nincs élő próbája (robot nem volt elérhető).
 
 ## TODO
 

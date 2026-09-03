@@ -37,6 +37,8 @@ Ez egy drága, nehezen pótolható konfigurációjú példány. A natív, gyári
 - [docker/webrtc_bridge/](docker/webrtc_bridge/) — kamera+LiDAR+telemetria a hivatalos WebRTC-protokollon — **élőben tesztelve: kamera+telemetria működik, LiDAR pontfelhő még nem**
 - [docker/web_dashboard/](docker/web_dashboard/) — fő webes vezérlőpult, joystick+akció-gombok+arm/disarm biztonsági zár — **élőben tesztelve: DDS-kapcsolat+telemetria működik, mozgás még nincs kipróbálva**
 - [docker/mock_robot/](docker/mock_robot/) — **robot nélküli fejlesztői stack**: szintetikus adatú `webrtc_bridge`-másolat + `web_dashboard` mock DDS-móddal — a UI/UX bármikor fejleszthető robot-hozzáférés nélkül
+- [docker/web_dashboard/`/showcase`](docker/web_dashboard/README.md#showcase--3d-digitális-iker) — **3D "digitális iker" bemutató-nézet**: élő, animált robotváz (valós URDF-geometria) + futurisztikus HUD-telemetria, 45-90+ perces órai bemutatóra — mock-adaton élőben tesztelve
+- [docs/14-capability-showcase-projekt.md](docs/14-capability-showcase-projekt.md) — a showcase-projekt leírása + a teljes oktatási vízió fázisai (SLAM, feladat-végrehajtás, objektumkövetés)
 - [docs/13-lokalis-llm-delegalas.md](docs/13-lokalis-llm-delegalas.md) — hogyan generálódik a kód helyi Qwen2.5-Coder modellel, Claude-review-val
 - [foxglove/](foxglove/) — Foxglove Studio layout/config a robot élő adatainak megjelenítéséhez
 - [backups/](backups/) — konfig-pillanatképek + Docker image mentések

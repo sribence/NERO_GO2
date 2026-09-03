@@ -45,6 +45,16 @@ MOVE_SPEED = 0.5
 TURN_SPEED = 1.0
 ARM_TIMEOUT_S = 30
 
+# Motor index order for LowState_.motor_state[0..11] — standard Unitree Go2
+# convention (FR, FL, RR, RL, each hip/thigh/calf). Used by the /showcase
+# 3D view to know which array slot drives which leg joint.
+MOTOR_NAMES = [
+    "FR_hip", "FR_thigh", "FR_calf",
+    "FL_hip", "FL_thigh", "FL_calf",
+    "RR_hip", "RR_thigh", "RR_calf",
+    "RL_hip", "RL_thigh", "RL_calf",
+]
+
 # --- shared state ---
 _lock = threading.Lock()
 dog_data = {
@@ -55,6 +65,13 @@ dog_data = {
     "velocity_y": None,
     "velocity_z": None,
     "yaw_speed": None,
+    "motor_q": [0.0] * 12,
+    "motor_tau": [0.0] * 12,
+    "motor_temp": [0] * 12,
+    "roll": None,
+    "pitch": None,
+    "yaw": None,
+    "mode_label": "—",
 }
 _armed = False
 _last_activity = time.time()
@@ -126,28 +143,74 @@ class _FakeSportClient:
         self._log("Sit")
 
 
+# Neutral standing pose (hip, thigh, calf), radians — well inside every
+# joint's real URDF limit (ld. docs/14-capability-showcase-projekt.md),
+# same value for all four legs; per-leg sign flips happen in _gait_pose().
+_STAND_HIP, _STAND_THIGH, _STAND_CALF = 0.0, 0.8, -1.5
+
+# Which of the 4 legs (in MOTOR_NAMES order: FR, FL, RR, RL) swings forward
+# together in a trot — diagonal pairs move in phase, the other two in
+# anti-phase, which is what actually makes it read as "walking" and not
+# just "wobbling in place".
+_TROT_PHASE = [0.0, math.pi, math.pi, 0.0]  # FR, FL, RR, RL
+
+
+def _gait_pose(t, walking: bool):
+    """Returns a flat 12-element joint-angle list (MOTOR_NAMES order) for
+    time t. Stand: fixed neutral pose. Walk: a simple sinusoidal trot —
+    not motion-captured, just enough to visibly animate all 12 joints for
+    a long-running showcase demo."""
+    q = []
+    for leg_i, phase in enumerate(_TROT_PHASE):
+        if walking:
+            swing = math.sin(t * 4.0 + phase)
+            hip = _STAND_HIP + 0.05 * math.sin(t * 4.0 + phase + math.pi / 2)
+            thigh = _STAND_THIGH + 0.35 * swing
+            calf = _STAND_CALF - 0.25 * max(swing, 0.0)
+        else:
+            hip, thigh, calf = _STAND_HIP, _STAND_THIGH, _STAND_CALF
+        q.extend([hip, thigh, calf])
+    return q
+
+
 def _init_mock_sdk():
     """MOCK_SDK=1 path — no unitree_sdk2py, no DDS, no real robot. Fills
-    dog_data with plausible oscillating values on a timer so the dashboard's
-    telemetry panels have something to show while developing the UI away
-    from the robot (ld. docs/00-BIZTONSAGI-SZABALYOK.md — the robot is
-    expensive/fragile/shared, so UI work should not require robot access)."""
+    dog_data with plausible oscillating values (including a 12-joint gait
+    cycle for the /showcase 3D view) on a timer, so the dashboard has
+    something to show while developing the UI away from the robot (ld.
+    docs/00-BIZTONSAGI-SZABALYOK.md — the robot is expensive/fragile/shared,
+    so UI work should not require robot access)."""
     global sdk_ready, sport_client
     sport_client = _FakeSportClient()
     sdk_ready = True
     logger.info("MOCK SportClient ready (MOCK_SDK=1, no real robot involved)")
     t0 = time.time()
+    # Repeating demo choreography so a long showcase session (45-90+ min)
+    # never looks frozen: stand -> walk -> stand -> ...
+    CYCLE_S = 12.0
     while True:
         t = time.time() - t0
+        walking = (t % CYCLE_S) > (CYCLE_S * 0.4)
+        q = _gait_pose(t, walking)
         with _lock:
             dog_data["voltage"] = round(28.5 - 0.05 * math.sin(t * 0.2), 2)
             dog_data["current"] = round(1.0 + 0.3 * math.sin(t), 2)
             dog_data["avg_temp"] = round(35 + 2 * math.sin(t * 0.1), 1)
-            dog_data["velocity_x"] = round(0.2 * math.sin(t * 0.5), 2)
+            dog_data["velocity_x"] = round(0.6 * math.sin(t * 0.5), 2) if walking else 0.0
             dog_data["velocity_y"] = 0.0
             dog_data["velocity_z"] = 0.0
             dog_data["yaw_speed"] = round(0.1 * math.sin(t * 0.3), 3)
-        time.sleep(1)
+            dog_data["roll"] = round(0.03 * math.sin(t * 4.0), 3) if walking else 0.0
+            dog_data["pitch"] = round(0.02 * math.cos(t * 4.0), 3) if walking else 0.0
+            dog_data["yaw"] = round(0.05 * math.sin(t * 0.1), 3)
+            dog_data["motor_q"] = q
+            dog_data["motor_tau"] = [
+                round(3.0 + 4.0 * abs(math.sin(t * 4.0 + i)), 2) if walking else round(1.5 + 0.5 * math.sin(t + i), 2)
+                for i in range(12)
+            ]
+            dog_data["motor_temp"] = [round(32 + 6 * (i % 3) + 2 * math.sin(t * 0.05 + i)) for i in range(12)]
+            dog_data["mode_label"] = "Járás" if walking else "Állás"
+        time.sleep(0.05)
 
 
 def _init_sdk():
@@ -172,6 +235,14 @@ def _init_sdk():
                 dog_data["voltage"] = round(msg.power_v, 2)
                 dog_data["current"] = round(msg.power_a, 2)
                 dog_data["avg_temp"] = round((msg.temperature_ntc1 + msg.temperature_ntc2) / 2, 1)
+                # 12-elemű tömbök a /showcase 3D nézetéhez, MOTOR_NAMES sorrendben
+                # (FR, FL, RR, RL, egyenként hip/thigh/calf).
+                dog_data["motor_q"] = [round(m.q, 4) for m in msg.motor_state[:12]]
+                dog_data["motor_tau"] = [round(m.tau_est, 2) for m in msg.motor_state[:12]]
+                dog_data["motor_temp"] = [m.temperature for m in msg.motor_state[:12]]
+                dog_data["roll"] = round(msg.imu_state.rpy[0], 3)
+                dog_data["pitch"] = round(msg.imu_state.rpy[1], 3)
+                dog_data["yaw"] = round(msg.imu_state.rpy[2], 3)
 
         def sport_state_handler(msg: SportModeState_):
             with _lock:
@@ -221,6 +292,42 @@ def _actions():
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/showcase")
+def showcase():
+    return render_template("showcase.html")
+
+
+@app.route("/showcase_data")
+def showcase_data():
+    """Dedicated high-frequency SSE stream for the /showcase 3D view — kept
+    separate from /data (1 Hz, hits webrtc_bridge/health every tick) so the
+    joint animation can update at ~10 Hz without hammering that proxy call."""
+
+    def generate():
+        while True:
+            with _lock:
+                payload = {
+                    "motor_q": dog_data["motor_q"],
+                    "motor_tau": dog_data["motor_tau"],
+                    "motor_temp": dog_data["motor_temp"],
+                    "roll": dog_data["roll"],
+                    "pitch": dog_data["pitch"],
+                    "yaw": dog_data["yaw"],
+                    "velocity_x": dog_data["velocity_x"],
+                    "velocity_y": dog_data["velocity_y"],
+                    "yaw_speed": dog_data["yaw_speed"],
+                    "voltage": dog_data["voltage"],
+                    "current": dog_data["current"],
+                    "mode_label": dog_data["mode_label"],
+                    "motor_names": MOTOR_NAMES,
+                }
+                payload["sdk_ready"] = sdk_ready
+            yield f"data: {json.dumps(payload)}\n\n"
+            time.sleep(0.1)
+
+    return Response(generate(), mimetype="text/event-stream")
 
 
 @app.route("/camera_feed")

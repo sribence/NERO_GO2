@@ -12,6 +12,8 @@ Jelmagyarázat: 🤖 = kell hozzá élő robot · 💻 = robot nélkül, laptopo
 - [x] 🤖 ROS2 Foxy Jetson dev image-ek lehúzva + helyi mentés
 - [x] 💻 `foxglove_bridge` Dockerfile + GPG-hiba javítás (build nincs végigfuttatva)
 - [x] 💻 `mock_robot` — robot nélküli fejlesztői stack (`docker/mock_robot/`), 2026-09-03, élőben tesztelve böngészőben
+- [x] 💻 `/showcase` 3D digitális iker — élő, animált robotváz + HUD-telemetria, mock-adaton tesztelve, ld. [14-capability-showcase-projekt.md](14-capability-showcase-projekt.md)
+- [ ] 🤖 `/showcase` élő tesztelése valós robot-DDS-adattal (a `_init_sdk` ág már fel van készítve motor_q/tau/temp adatra)
 
 ## Fázis 1 — érzékelés/kommunikáció alapréteg
 

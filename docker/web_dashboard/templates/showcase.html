@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NERO_GO2 — Capability Showcase</title>
+<style>
+  :root {
+    --bg: #05070a;
+    --panel: #0c1118;
+    --border: #1c2733;
+    --text: #dbe7f2;
+    --muted: #5f7386;
+    --accent: #22e5ff;
+    --accent2: #7bffb0;
+    --warn: #ffb84d;
+    --danger: #ff5566;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    background: radial-gradient(ellipse at 50% 0%, #0b1420 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: "Consolas", "SFMono-Regular", Menlo, monospace;
+    margin: 0;
+    overflow: hidden;
+  }
+  #layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+  }
+  header {
+    grid-column: 1 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(12, 17, 24, 0.85);
+  }
+  header .title { font-size: 15px; letter-spacing: 0.08em; color: var(--accent); text-shadow: 0 0 12px rgba(34, 229, 255, 0.5); }
+  header .title b { color: var(--text); text-shadow: none; }
+  header .mode { font-size: 13px; padding: 4px 12px; border: 1px solid var(--accent); border-radius: 3px; color: var(--accent); }
+  header .clock { font-size: 12px; color: var(--muted); }
+  #viewport { position: relative; background: #060a0f; }
+  #viewport canvas { display: block; }
+  .hud-corner {
+    position: absolute; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  #hud-tl { top: 14px; left: 14px; }
+  #hud-bl { bottom: 14px; left: 14px; }
+  #hud-tl .big { font-size: 22px; color: var(--accent2); text-shadow: 0 0 10px rgba(123,255,176,.5); font-weight: bold; }
+  #sidebar {
+    border-left: 1px solid var(--border);
+    background: rgba(12, 17, 24, 0.9);
+    padding: 16px;
+    overflow-y: auto;
+  }
+  .panel { border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 14px; background: rgba(255,255,255,0.015); }
+  .panel h3 { margin: 0 0 10px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .kv { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+  .kv span { color: var(--muted); }
+  .kv b { color: var(--text); }
+  .bar-row { display: flex; align-items: center; gap: 6px; font-size: 10px; margin-bottom: 4px; }
+  .bar-row .lbl { width: 62px; color: var(--muted); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 6px; background: #10161f; border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.1s linear, background 0.3s; }
+  .bar-val { width: 40px; text-align: right; color: var(--muted); flex-shrink: 0; }
+  #badge-sdk { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--muted); color: var(--muted); }
+  #badge-sdk.ok { color: var(--accent2); border-color: var(--accent2); }
+</style>
+</head>
+<body>
+<div id="layout">
+  <header>
+    <div class="title">NERO_GO2 <b>&mdash; CAPABILITY SHOWCASE</b></div>
+    <div class="mode" id="mode-label">&mdash;</div>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <span id="badge-sdk">SDK: &mdash;</span>
+      <span class="clock" id="clock"></span>
+    </div>
+  </header>
+
+  <div id="viewport">
+    <div class="hud-corner" id="hud-tl">
+      <div>SEBESSÉG</div>
+      <div class="big" id="hud-speed">0.00 m/s</div>
+    </div>
+    <div class="hud-corner" id="hud-bl">
+      NERO_GO2 &mdash; Unitree Go2 EDU &mdash; élő ízület-szimuláció
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div class="panel">
+      <h3>Táp</h3>
+      <div class="kv"><span>Feszültség</span><b id="v-voltage">&mdash;</b></div>
+      <div class="kv"><span>Áram</span><b id="v-current">&mdash;</b></div>
+    </div>
+
+    <div class="panel">
+      <h3>IMU (test-orientáció)</h3>
+      <div class="kv"><span>Roll</span><b id="v-roll">&mdash;</b></div>
+      <div class="kv"><span>Pitch</span><b id="v-pitch">&mdash;</b></div>
+      <div class="kv"><span>Yaw</span><b id="v-yaw">&mdash;</b></div>
+    </div>
+
+    <div class="panel">
+      <h3>Ízület-hőmérséklet (°C)</h3>
+      <div id="motor-temp-bars"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Ízület-terhelés (Nm, becsült)</h3>
+      <div id="motor-tau-bars"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ---------------------------------------------------------------------
+// Geometria: a hivatalos Unitree Go2 URDF valós méretei/tengelyei
+// (unitreerobotics/unitree_ros/robots/go2_description/urdf/go2_description.urdf,
+// 2026-09-01-én lekérve `gh api`-val) — a mesh-fájlokat NEM töltjük be
+// (egyszerűség, ld. docs/14-capability-showcase-projekt.md), helyette
+// ugyanezekkel a valós offszetekkel/tengelyekkel épített primitív-váz.
+//
+// Koordináta-leképzés robot -> three.js: three.x = robot.x (előre),
+// three.y = robot.z (fel), three.z = robot.y (balra) — így a three.js
+// alap Y-fel konvenciója működik az OrbitControls-szal.
+// ---------------------------------------------------------------------
+const BODY = { x: 0.3762, y: 0.114, z: 0.0935 }; // three (hossz, magasság, szélesség)
+const THIGH_LEN = 0.213;
+const CALF_LEN = 0.213;
+const LEGS = [
+  // name, hipX(robot x), hipZ(three z = robot y), thighZoff(three z offset a hipPivoton belül)
+  { name: "FR", x:  0.1934, z: -0.0465, thighZ: -0.0955 },
+  { name: "FL", x:  0.1934, z:  0.0465, thighZ:  0.0955 },
+  { name: "RR", x: -0.1934, z: -0.0465, thighZ: -0.0955 },
+  { name: "RL", x: -0.1934, z:  0.0465, thighZ:  0.0955 },
+];
+// MOTOR_NAMES sorrend (app.py-val egyezően): FR,FL,RR,RL, mindegyik hip/thigh/calf
+const MOTOR_ORDER = ["FR_hip","FR_thigh","FR_calf","FL_hip","FL_thigh","FL_calf","RR_hip","RR_thigh","RR_calf","RL_hip","RL_thigh","RL_calf"];
+
+const scene = new THREE.Scene();
+const viewport = document.getElementById("viewport");
+const camera = new THREE.PerspectiveCamera(45, viewport.clientWidth / viewport.clientHeight, 0.01, 100);
+camera.position.set(0.9, 0.6, 0.9);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+viewport.appendChild(renderer.domElement);
+
+// Kiosk-jellegű bemutatóhoz nincs szükség interaktív kamerára (nem
+// egyszerű elérni cdnjs-en az OrbitControls.js-t erre a verzióra sem) —
+// helyette egy lassú, automatikus körbeforgás, ami magától is látványos
+// egy 45-90+ perces vetítés alatt.
+const CAM_TARGET = new THREE.Vector3(0, 0.16, 0);
+let camAngle = 0.7;
+
+scene.add(new THREE.AmbientLight(0x557788, 1.2));
+const key = new THREE.DirectionalLight(0x22e5ff, 1.4);
+key.position.set(1, 2, 1);
+scene.add(key);
+const rim = new THREE.DirectionalLight(0x7bffb0, 0.6);
+rim.position.set(-1, 1, -1);
+scene.add(rim);
+
+const grid = new THREE.GridHelper(3, 30, 0x1c3040, 0x121a22);
+scene.add(grid);
+
+const accentMat = new THREE.MeshStandardMaterial({ color: 0x22e5ff, emissive: 0x0a3540, metalness: 0.4, roughness: 0.35 });
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0x263340, emissive: 0x0a1218, metalness: 0.6, roughness: 0.3 });
+const jointMat = new THREE.MeshStandardMaterial({ color: 0x7bffb0, emissive: 0x114422, metalness: 0.5, roughness: 0.3 });
+
+const robotGroup = new THREE.Group();
+robotGroup.position.y = THIGH_LEN + CALF_LEN * 0.55; // nagyjából álló magasság
+scene.add(robotGroup);
+
+const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(BODY.x, BODY.y, BODY.z), bodyMat);
+robotGroup.add(bodyMesh);
+
+// legPivots[legIdx] = { hip, thigh, calf } — THREE.Group-ok, .rotation.x/.z-t
+// állítjuk majd az élő motor_q adatból.
+const legPivots = [];
+
+for (const leg of LEGS) {
+  const hipPivot = new THREE.Group();
+  hipPivot.position.set(leg.x, 0, leg.z);
+  robotGroup.add(hipPivot);
+
+  const hipMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.05, 16), jointMat);
+  hipMesh.rotation.z = Math.PI / 2; // X-tengely körül forog majd a pivot, a henger vizuálisan X-irányban áll
+  hipPivot.add(hipMesh);
+
+  const thighPivot = new THREE.Group();
+  thighPivot.position.set(0, 0, leg.thighZ);
+  hipPivot.add(thighPivot);
+
+  const thighMesh = new THREE.Mesh(new THREE.BoxGeometry(0.032, THIGH_LEN, 0.032), accentMat);
+  thighMesh.position.set(0, -THIGH_LEN / 2, 0);
+  thighPivot.add(thighMesh);
+
+  const calfPivot = new THREE.Group();
+  calfPivot.position.set(0, -THIGH_LEN, 0);
+  thighPivot.add(calfPivot);
+
+  const calfMesh = new THREE.Mesh(new THREE.BoxGeometry(0.024, CALF_LEN, 0.024), bodyMat);
+  calfMesh.position.set(0, -CALF_LEN / 2, 0);
+  calfPivot.add(calfMesh);
+
+  const footMesh = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 12), jointMat);
+  footMesh.position.set(0, -CALF_LEN, 0);
+  calfPivot.add(footMesh);
+
+  legPivots.push({ hip: hipPivot, thigh: thighPivot, calf: calfPivot });
+}
+
+function applyMotorQ(q) {
+  if (!q || q.length < 12) return;
+  LEGS.forEach((leg, i) => {
+    const base = i * 3;
+    legPivots[i].hip.rotation.x = q[base + 0];
+    legPivots[i].thigh.rotation.z = q[base + 1];
+    legPivots[i].calf.rotation.z = q[base + 2];
+  });
+}
+
+function applyBodyOrientation(roll, pitch, yaw) {
+  // robot roll(x)/pitch(y)/yaw(z) -> three: roll marad X, pitch -> Z, yaw -> Y
+  robotGroup.rotation.x = roll || 0;
+  robotGroup.rotation.z = pitch || 0;
+  robotGroup.rotation.y = -(yaw || 0);
+}
+
+function onResize() {
+  camera.aspect = viewport.clientWidth / viewport.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+}
+window.addEventListener("resize", onResize);
+
+function animate() {
+  requestAnimationFrame(animate);
+  camAngle += 0.0025;
+  const radius = 1.15;
+  camera.position.set(Math.cos(camAngle) * radius, 0.55, Math.sin(camAngle) * radius);
+  camera.lookAt(CAM_TARGET);
+  renderer.render(scene, camera);
+}
+animate();
+
+// ---------------------------------------------------------------------
+// Élő adat: SSE a /showcase_data-ról
+// ---------------------------------------------------------------------
+function tempColor(t) {
+  if (t < 40) return "#7bffb0";
+  if (t < 55) return "#ffb84d";
+  return "#ff5566";
+}
+
+function buildBarRows(container, labels) {
+  container.innerHTML = "";
+  return labels.map((label) => {
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    row.innerHTML = `<div class="lbl">${label}</div><div class="bar-track"><div class="bar-fill"></div></div><div class="bar-val">&mdash;</div>`;
+    container.appendChild(row);
+    return { fill: row.querySelector(".bar-fill"), val: row.querySelector(".bar-val") };
+  });
+}
+
+const tempRows = buildBarRows(document.getElementById("motor-temp-bars"), MOTOR_ORDER);
+const tauRows = buildBarRows(document.getElementById("motor-tau-bars"), MOTOR_ORDER);
+
+function updateClock() {
+  document.getElementById("clock").textContent = new Date().toLocaleTimeString("hu-HU");
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+const es = new EventSource("/showcase_data");
+es.onmessage = (ev) => {
+  const d = JSON.parse(ev.data);
+
+  applyMotorQ(d.motor_q);
+  applyBodyOrientation(d.roll, d.pitch, d.yaw);
+
+  document.getElementById("mode-label").textContent = d.mode_label || "—";
+  const speed = Math.sqrt((d.velocity_x || 0) ** 2 + (d.velocity_y || 0) ** 2);
+  document.getElementById("hud-speed").textContent = speed.toFixed(2) + " m/s";
+
+  document.getElementById("v-voltage").textContent = (d.voltage ?? "—") + " V";
+  document.getElementById("v-current").textContent = (d.current ?? "—") + " A";
+  document.getElementById("v-roll").textContent = ((d.roll ?? 0) * 57.2958).toFixed(1) + "°";
+  document.getElementById("v-pitch").textContent = ((d.pitch ?? 0) * 57.2958).toFixed(1) + "°";
+  document.getElementById("v-yaw").textContent = ((d.yaw ?? 0) * 57.2958).toFixed(1) + "°";
+
+  const sdkBadge = document.getElementById("badge-sdk");
+  sdkBadge.textContent = "SDK: " + (d.sdk_ready ? "KÉSZ" : "VÁRAKOZIK");
+  sdkBadge.className = d.sdk_ready ? "ok" : "";
+
+  (d.motor_temp || []).forEach((t, i) => {
+    if (!tempRows[i]) return;
+    const pct = Math.min(100, Math.max(0, ((t - 20) / 60) * 100));
+    tempRows[i].fill.style.width = pct + "%";
+    tempRows[i].fill.style.background = tempColor(t);
+    tempRows[i].val.textContent = t + "°";
+  });
+
+  (d.motor_tau || []).forEach((tau, i) => {
+    if (!tauRows[i]) return;
+    const pct = Math.min(100, Math.max(0, (Math.abs(tau) / 15) * 100));
+    tauRows[i].fill.style.width = pct + "%";
+    tauRows[i].fill.style.background = "#22e5ff";
+    tauRows[i].val.textContent = tau;
+  });
+};
+</script>
+</body>
+</html>
