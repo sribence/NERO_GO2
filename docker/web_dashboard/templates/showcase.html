@@ -112,7 +112,7 @@
   /* LiDAR diagnosztikai csúszkák — annak ellenőrzésére, hogy a pontfelhő
      ténylegesen ott van-e, csak nem látszik (méret/zoom miatt). */
   #lidar-debug-panel {
-    position: absolute; top: 210px; right: 14px; width: 220px;
+    position: absolute; top: 254px; right: 14px; width: 220px;
     border: 1px solid var(--border); border-radius: 4px; padding: 8px 10px;
     background: rgba(12,17,24,0.85); font-size: 10px; color: var(--muted);
   }
@@ -121,6 +121,16 @@
   #lidar-debug-panel label { width: 90px; flex-shrink: 0; }
   #lidar-debug-panel input[type="range"] { flex: 1; accent-color: var(--accent); }
   #lidar-debug-panel span { width: 34px; text-align: right; color: var(--text); }
+
+  /* Kézi nézet-váltó gombok — a felhasználó explicit kérése: gomb, nem
+     automatikus váltás, a kamera-nézet állítására. */
+  #view-buttons { position: absolute; top: 218px; right: 14px; display: flex; gap: 6px; z-index: 3; }
+  #view-buttons button {
+    font-family: inherit; font-size: 10px; letter-spacing: .03em; padding: 6px 10px;
+    background: rgba(12,17,24,0.85); color: var(--text); border: 1px solid var(--border);
+    border-radius: 4px; cursor: pointer; transition: border-color .2s, color .2s;
+  }
+  #view-buttons button:hover { border-color: var(--accent); color: var(--accent); }
 
   /* Képesség-legenda (statikus, a robot valós műszaki adatai) */
   #legend-panel .legend-item { font-size: 11px; margin-bottom: 8px; padding-left: 10px; border-left: 2px solid var(--accent); }
@@ -251,8 +261,11 @@
 
     <div id="lidar-debug-panel">
       <div class="dbg-row"><label>Pontméret</label><input type="range" id="dbg-point-size" min="0.005" max="0.08" step="0.001" value="0.035"><span id="dbg-point-size-val">0.035</span></div>
-      <div class="dbg-row"><label>Nézettávolság</label><input type="range" id="dbg-cam-radius" min="0.5" max="6" step="0.05" value="1.15"><span id="dbg-cam-radius-val">1.15</span></div>
-      <div class="dbg-row"><label><input type="checkbox" id="dbg-freeze-cam"> Kamera fagyasztva</label></div>
+    </div>
+
+    <div id="view-buttons">
+      <button id="view-close-btn" type="button">🔍 Ízület-közeli</button>
+      <button id="view-wide-btn" type="button">🌐 LiDAR-távoli</button>
     </div>
   </div>
 
@@ -345,24 +358,54 @@ renderer.setSize(viewport.clientWidth, viewport.clientHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 viewport.appendChild(renderer.domElement);
 
-// Kiosk-jellegű bemutatóhoz nincs szükség interaktív kamerára (nem
-// egyszerű elérni cdnjs-en az OrbitControls.js-t erre a verzióra sem) —
-// helyette egy lassú, automatikus körbeforgás, ami magától is látványos
-// egy 45-90+ perces vetítés alatt.
+// Kézi kamera-vezérlés: húzással forgatható (azimut+polár szög), görgővel
+// zoomolható. Az OrbitControls.js nem tölthető be megbízhatóan cdnjs-ről
+// erre a three.js verzióra, ezért egy minimális, kézzel írt megfelelője —
+// 2026-09-04: a korábbi automatikus körbeforgás/kamera-koreográfia
+// zavarónak bizonyult (ez okozta az elöl/hátul félreértést is, és a
+// felhasználó explicit kézi vezérlést kért az automatikus helyett).
 const CAM_TARGET = new THREE.Vector3(0, 0.16, 0);
-let camAngle = 0.7;
-let camRadius = 1.15;
+let camAngle = 0.7;       // azimut (vízszintes forgás)
+let camPolar = 1.15;      // polár szög (magasság) — kb. 66°, enyhén felülnézet
+let camRadius = 1.6;      // induláskor mindkét LiDAR-pontfelhő is látszik
+const CAM_POLAR_MIN = 0.25, CAM_POLAR_MAX = Math.PI - 0.25;
+const CAM_RADIUS_MIN = 0.5, CAM_RADIUS_MAX = 6;
 
-// Kamera-koreográfia: közeli (robot-ízület fókusz) és távoli (szenzor-/
-// szoba-nézet, ahol a LiDAR-pontfelhők ténylegesen láthatók) beállás
-// váltakozik — 2026-09-04 élő teszten kiderült, hogy 1.15-ös közeli
-// radiuszon a pontfelhő (ami méteres távolságban van) gyakorlatilag
-// láthatatlan volt, csak kizoomolva vált látvánnyá.
-const CAM_SHOT_CLOSE = 1.15;
-const CAM_SHOT_WIDE = 3.4;
-const CAM_SHOT_PERIOD_S = 16; // ennyi ideig tart egy-egy "shot"
-let camRadiusTarget = CAM_SHOT_CLOSE;
-let shotStart = 0;
+(function setupManualOrbit() {
+  const dom = renderer.domElement;
+  dom.style.touchAction = "none";
+  dom.style.cursor = "grab";
+  let dragging = false, lastX = 0, lastY = 0;
+
+  dom.addEventListener("pointerdown", (e) => {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    dom.style.cursor = "grabbing";
+    dom.setPointerCapture(e.pointerId);
+  });
+  dom.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    camAngle -= dx * 0.006;
+    camPolar = Math.min(CAM_POLAR_MAX, Math.max(CAM_POLAR_MIN, camPolar - dy * 0.006));
+  });
+  dom.addEventListener("pointerup", (e) => { dragging = false; dom.style.cursor = "grab"; });
+  dom.addEventListener("pointercancel", () => { dragging = false; dom.style.cursor = "grab"; });
+  dom.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    camRadius = Math.min(CAM_RADIUS_MAX, Math.max(CAM_RADIUS_MIN, camRadius + e.deltaY * 0.0025 * camRadius));
+  }, { passive: false });
+
+  // Két gomb: robot-közeli / LiDAR-távoli előre beállított nézet — a
+  // felhasználó explicit kérése "gomb kellene, hogy én állíthassam",
+  // az automatikus váltás helyett.
+  document.getElementById("view-close-btn").addEventListener("click", () => {
+    camRadius = 1.15; camPolar = 1.15;
+  });
+  document.getElementById("view-wide-btn").addEventListener("click", () => {
+    camRadius = 3.4; camPolar = 1.15;
+  });
+})();
 
 scene.add(new THREE.AmbientLight(0x557788, 1.2));
 const key = new THREE.DirectionalLight(0x22e5ff, 1.4);
@@ -561,17 +604,6 @@ dbgPointSize.addEventListener("input", () => {
   dbgPointSizeVal.textContent = dbgPointSize.value;
 });
 
-const dbgCamRadius = document.getElementById("dbg-cam-radius");
-const dbgCamRadiusVal = document.getElementById("dbg-cam-radius-val");
-dbgCamRadius.addEventListener("input", () => {
-  camRadius = parseFloat(dbgCamRadius.value);
-  dbgCamRadiusVal.textContent = dbgCamRadius.value;
-});
-
-document.getElementById("dbg-freeze-cam").addEventListener("change", (e) => {
-  window.FREEZE_CAM = e.target.checked;
-});
-
 // Forgó "sweep" sugár — RViz-szerű felismerhető LiDAR-vizualizáció,
 // tisztán díszítő elem (a valós scan-irányt nem követi, csak a
 // forgó-szenzor benyomását kelti).
@@ -651,18 +683,14 @@ window.addEventListener("resize", onResize);
 let sweepAngle = 0;
 function animate() {
   requestAnimationFrame(animate);
-  const nowS = performance.now() / 1000;
-  if (!window.FREEZE_CAM) {
-    camAngle += 0.0025;
-    // Váltakozó közeli/távoli "shot" — lásd a CAM_SHOT_* konstansok
-    // megjegyzését: a szenzor-pontfelhők csak a távoli nézetben látszanak.
-    if (nowS - shotStart > CAM_SHOT_PERIOD_S) {
-      shotStart = nowS;
-      camRadiusTarget = camRadiusTarget === CAM_SHOT_CLOSE ? CAM_SHOT_WIDE : CAM_SHOT_CLOSE;
-    }
-    camRadius += (camRadiusTarget - camRadius) * 0.02; // lágy lerp, nem ugrásszerű váltás
-  }
-  camera.position.set(Math.cos(camAngle) * camRadius, 0.55 * camRadius, Math.sin(camAngle) * camRadius);
+  // Gömbi koordináták: camAngle=azimut, camPolar=magassági szög — mindkettő
+  // kizárólag a felhasználó húzása/görgetése állítja (setupManualOrbit),
+  // itt nincs automatikus változtatás.
+  camera.position.set(
+    camRadius * Math.sin(camPolar) * Math.cos(camAngle),
+    camRadius * Math.cos(camPolar),
+    camRadius * Math.sin(camPolar) * Math.sin(camAngle)
+  );
   camera.lookAt(CAM_TARGET);
   sweepAngle += 0.02;
   sweepPivot.rotation.y = sweepAngle;
