@@ -32,6 +32,7 @@ import threading
 from typing import Optional
 
 import cv2
+import numpy as np
 from flask import Flask, Response, jsonify
 
 from unitree_webrtc_connect import (
@@ -92,11 +93,38 @@ def lidar():
     s = _get_state()
     if s["lidar"] is None:
         return jsonify({"error": "no lidar data yet"}), 404
-    points = s["lidar"]
-    if isinstance(points, list) and len(points) > 5000:
+    raw = s["lidar"]
+
+    # 2026-09-04, élő robottal tesztelve és dekódolva (/lidar_debug
+    # segítségével, mert sem a könyvtár, sem a hivatalos példa nem
+    # dokumentálja ezt pontosan): a raktári "libvoxel" dekóder
+    # (unitree_webrtc_connect, ld. lidar/lidar_decoder_libvoxel.py) egy
+    # voxel-mesh puffer-készletet ad vissza. A "positions" mező NEM
+    # nyers float/world-koordináta, hanem fixpontos int16 rács-index,
+    # 256-os (2^8) skálázással: valós_rács_index = raw_int16 / 256.0,
+    # világkoordináta = origin + valós_rács_index * resolution. Ez
+    # a datachannel-üzenet KÜLSŐ "data" mezőjéből (origin/resolution/
+    # width) és a BELSŐ "data" mezőből (a decoder kimenete: positions/
+    # uvs/indices/point_count/face_count) áll össze.
+    try:
+        outer = raw if isinstance(raw, dict) else {}
+        inner = outer.get("data", raw) if isinstance(raw, dict) else raw
+        positions = inner.get("positions") if isinstance(inner, dict) else None
+        origin = outer.get("origin")
+        resolution = outer.get("resolution")
+        if positions is None or origin is None or resolution is None:
+            return jsonify({"error": "no lidar data yet"}), 404
+        arr = np.asarray(positions)
+        grid_idx = arr.view(np.int16).astype(np.float32).reshape(-1, 3) / 256.0
+        points = np.asarray(origin, dtype=np.float32) + grid_idx * float(resolution)
+    except Exception:
+        logger.exception("lidar decode failed")
+        return jsonify({"error": "lidar decode failed"}), 500
+
+    if len(points) > 5000:
         step = len(points) // 5000
         points = points[::step][:5000]
-    return jsonify(points)
+    return jsonify(points.tolist())
 
 
 @app.route("/lidar_state")
