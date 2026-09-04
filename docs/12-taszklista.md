@@ -13,7 +13,7 @@ Jelmagyarázat: 🤖 = kell hozzá élő robot · 💻 = robot nélkül, laptopo
 - [x] 💻 `foxglove_bridge` Dockerfile + GPG-hiba javítás (build nincs végigfuttatva)
 - [x] 💻 `mock_robot` — robot nélküli fejlesztői stack (`docker/mock_robot/`), 2026-09-03, élőben tesztelve böngészőben
 - [x] 💻 `/showcase` 3D digitális iker — élő, animált robotváz + HUD-telemetria, mock-adaton tesztelve, ld. [14-capability-showcase-projekt.md](14-capability-showcase-projekt.md)
-- [ ] 🤖 `/showcase` élő tesztelése valós robot-DDS-adattal (a `_init_sdk` ág már fel van készítve motor_q/tau/temp adatra)
+- [x] 🤖 `/showcase` élő tesztelve valós robot-DDS-adattal — 2026-09-04, VÁLTOZTATÁS NÉLKÜL működött (motor_q/tau/temp, IMU, kamera, LiDAR mind élő, "data_source":"live" jelöléssel)
 
 ## Fázis 1 — érzékelés/kommunikáció alapréteg
 
@@ -22,7 +22,7 @@ Jelmagyarázat: 🤖 = kell hozzá élő robot · 💻 = robot nélkül, laptopo
 - [ ] 🤖 A [09-dds-interfesz-eltapasztalas.md](09-dds-interfesz-eltapasztalas.md) `eth0`/`eth10` hiba hatásának ellenőrzése — látszanak-e a `rt/...` topicok (a fenti SIGSEGV-hiba miatt még nem tesztelhető)
 - [x] 💻 `unitree_webrtc_connect` (MIT) áttekintése, licenc-ellenőrzés, fork/vendor-elés a `docker/webrtc_bridge/` alá — 2026-08-31, helyi LLM-mel generálva+javítva, ld. [13-lokalis-llm-delegalas.md](13-lokalis-llm-delegalas.md)
 - [x] 🤖 `webrtc_bridge` Docker-konténer élő tesztelése — 2026-09-01, kamera+telemetria MŰKÖDIK, 3 API-hiba javítva (ld. [docker/webrtc_bridge/README.md](../docker/webrtc_bridge/README.md))
-- [ ] 🤖 LiDAR pontfelhő (`/lidar`) — a szenzor forog és adatot termel, de a `voxel_map_compressed` topic nem küld semmit; gyanú: damping mód/állvány blokkolja — újratesztelendő normál állapotban
+- [x] 🤖 LiDAR pontfelhő (`/lidar`) — 2026-09-04, MEGOLDVA: a voxel-mesh dekódolás hibája volt (fixpontos int16 rács-index, nem sima float lista), ld. [docker/webrtc_bridge/README.md](../docker/webrtc_bridge/README.md)
 - [ ] 🤖 Intel RealSense D435i fizikai csatlakozásának azonosítása (Jetson USB vs. mozgásvezérlő) + `librealsense`/`realsense-ros` Docker-konténerben tesztelve
 - [ ] 💻 Ezen a ponton dokumentálni: melyik szenzor melyik csatornán, milyen formátumban érhető el (referencia-táblázat a repóba)
 

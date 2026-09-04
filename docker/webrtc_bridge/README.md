@@ -4,7 +4,7 @@ Kamera + LiDAR + telemetria hozzáférés a Go2-höz a **hivatalos** Unitree Web
 
 **Ez a kód nagyrészt egy helyi LLM-mel (`qwen2.5-coder:14b`) generáltatva készült, kézi átnézéssel/javítással** — ld. [docs/13-lokalis-llm-delegalas.md](../../docs/13-lokalis-llm-delegalas.md) a workflow-ért.
 
-## Státusz (2026-09-01): ÉLŐ ROBOTTAL TESZTELVE — kamera+telemetria működik, LiDAR pontfelhő még nem
+## Státusz (2026-09-04): ÉLŐ ROBOTTAL TESZTELVE — kamera+telemetria+LiDAR MIND működik
 
 A build sikeresen felépült Jetsonon, a konténer `network_mode: host`-on **hibátlanul** csatlakozik a robothoz (nem érinti a `rosbridge`-nél talált SIGSEGV-hibát, mert ez tiszta Python/`aiortc`, nem ROS2/DDS-alapú).
 
@@ -16,16 +16,20 @@ A build sikeresen felépült Jetsonon, a konténer `network_mode: host`-on **hib
 
 ### Ami működik
 - `/health`, `/state` — élő IMU/motor/akkumulátor-adat (pl. 46% SoC, 28.8V, motor-hőmérsékletek)
-- `/camera.jpg` — élő kameraframe (JPEG, ~65-70KB), valós robot-kép
+- `/camera.jpg` — élő kameraframe (JPEG, ~65-90KB), valós robot-kép
+- `/lidar` — élő pontfelhő (max 5000 pontra ritkítva), **2026-09-04 óta megoldva**
 
-### Ami (még) nem működik: `/lidar`
-A LiDAR **fizikailag forog és adatot termel** (`rt/utlidar/lidar_state` topicon élő `cloud_frequency`/`cloud_size`/`com_rotation_speed` adat érkezik folyamatosan), DE a `rt/utlidar/voxel_map_compressed` topic — amiről a tényleges pontfelhőt várnánk — **soha nem küld üzenetet**, annak ellenére, hogy a kódunk **szóról szóra megegyezik** a könyvtár hivatalos `examples/go2/data_channel/lidar/lidar_stream.py` példájával (ellenőrizve `gh api` segítségével, nyers forrásból).
+### `/lidar` dekódolás — 2026-09-04, élő robottal megfejtve
+A `rt/utlidar/voxel_map_compressed` topic korábban azért tűnt "nem működőnek", mert a raktári "libvoxel" dekóder (`unitree_webrtc_connect`, `lidar/lidar_decoder_libvoxel.py`) **nem sima pontlistát ad vissza**, hanem egy voxel-mesh puffer-készletet (`{"positions": <numpy uint8 tömb>, "uvs", "indices", "point_count", "face_count"}`) — ráadásul ez a decoder-kimenet a datachannel-üzenet **belső** `data` mezőjében van, nem a külsőben. Sem a könyvtár, sem a hivatalos `examples/go2/data_channel/lidar/plot_lidar_stream.py` nem dokumentálja pontosan ezt a formátumot.
 
-**Legvalószínűbb ok:** a "voxel map" egy magasabb szintű, feldolgozott (SLAM/mapping-szerű) termék, nem a nyers szenzor-adat — feltehetően csak akkor publikálódik, ha a robot egy adott üzemmódban van, NEM pedig a jelenlegi állapotában (a robot most a hivatalos állványán, **damping módban** áll — ld. [docs/10-munkamenet-naplo-2026-08-31.md](../../docs/10-munkamenet-naplo-2026-08-31.md)). Ezt csak úgy lehet megerősíteni/cáfolni, hogy a robotot normál (nem damping) állapotban teszteljük újra.
+A `positions` mező tartalma egy ideiglenes `/lidar_debug` végponttal (hex/int16/uint16/float32/int32 értelmezések egymás mellett) derült ki élő robot-adaton: **fixpontos int16 rács-index, 256-os (2⁸) skálázással**:
+```
+valós_rács_index = raw_int16 / 256.0
+világkoordináta   = origin + valós_rács_index * resolution
+```
+(`origin` és `resolution` a datachannel-üzenet külső `data` mezőjéből jön, pl. `resolution=0.05`, `origin=[-3.225,-3.225,-0.575]`, `width=[128,128,38]` — egy 6.4×6.4×1.9m-es, 5cm-es voxel-rács.)
 
-**Nyitott TODO:**
-- [ ] Újratesztelni `/lidar`-t, amíg a robot NEM damping módban, NEM az állványon van
-- [ ] Ha továbbra sem jön adat: megnézni, kell-e egy "mapping mód" bekapcsoló API-hívás (pl. a `SLAM_QT_COMMAND`/`rt/qt_command` topicon) a voxel-map generáláshoz
+Élő teszt: 5000 pont, fizikailag értelmes koordináták (~1.8m/-1.4m/-0.2m tartományban, a robot közelében lévő felületeket írja le).
 
 ## Endpointok
 
@@ -33,7 +37,7 @@ A LiDAR **fizikailag forog és adatot termel** (`rt/utlidar/lidar_state` topicon
 |---|---|
 | `GET /health` | `{"status": "ok", "connected": bool}` |
 | `GET /camera.jpg` | legutóbbi kameraframe JPEG-ként, 404 amíg nincs |
-| `GET /lidar` | legutóbbi LiDAR pontfelhő JSON-ban (max 5000 pontra ritkítva) — **jelenleg mindig 404, ld. fent** |
+| `GET /lidar` | legutóbbi LiDAR pontfelhő JSON-ban, `[[x,y,z],...]` (max 5000 pontra ritkítva) — **működik** |
 | `GET /lidar_state` | LiDAR szenzor-státusz (forgási sebesség, felhő-frekvencia, hibaállapot) — ez MŰKÖDIK |
 | `GET /state` | legutóbbi lowstate + sportmodestate + távirányító adat |
 
