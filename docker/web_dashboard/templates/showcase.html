@@ -15,6 +15,10 @@
     --accent2: #7bffb0;
     --warn: #ffb84d;
     --danger: #ff5566;
+    /* Kizárólag tranziens eseményekre (gait-váltás, parancs, riasztás) —
+       SOHA nem folyamatos UI-elemre, hogy megjelenése önmagában jelentsen
+       valamit (ld. docs/14-capability-showcase-projekt.md workflow-jegyzék). */
+    --event: #ff2fd6;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
@@ -158,12 +162,60 @@
 
   /* Teljesítmény sparkline */
   #power-canvas { width: 100%; height: 40px; display: block; }
+
+  /* Hero-flash — nagy, átmeneti, középre villanó felirat gait-váltásra/riasztásra */
+  #hero-flash {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(.85);
+    font-size: clamp(28px, 5vw, 56px); font-weight: 700; letter-spacing: .04em;
+    text-shadow: 0 0 24px currentColor; opacity: 0; pointer-events: none;
+    transition: opacity .35s ease, transform .35s ease; text-align: center; z-index: 5;
+    white-space: nowrap;
+  }
+
+  /* Parancs-toast + rövid glitch-átmenet gait-váltáskor */
+  #command-toast {
+    position: fixed; top: -60px; left: 0; right: 0; z-index: 50;
+    padding: 10px 20px; font-size: 15px; font-weight: 700; letter-spacing: .08em; text-align: center;
+    background: linear-gradient(90deg, transparent, var(--event), transparent);
+    color: #05070a; transition: top .3s cubic-bezier(.2,.9,.3,1);
+  }
+  #glitch-overlay {
+    position: fixed; inset: 0; z-index: 40; pointer-events: none; opacity: 0; mix-blend-mode: overlay;
+    background: repeating-linear-gradient(0deg, rgba(255,47,214,.4) 0px, transparent 2px, transparent 5px);
+  }
+  #glitch-overlay.active { animation: glitchJitter .25s steps(4); opacity: .8; }
+  @keyframes glitchJitter { 0%{transform:translateX(0)} 25%{transform:translateX(-4px)} 50%{transform:translateX(3px)} 75%{transform:translateX(-2px)} 100%{transform:translateX(0);opacity:0} }
+
+  /* Ambient scanline-drift + vignette-pulzálás a viewporton — mélységérzet, olcsó CSS-only */
+  #viewport::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0px, transparent 2px, transparent 4px);
+    animation: scanlineDrift 8s linear infinite;
+  }
+  @keyframes scanlineDrift { from { background-position-y: 0; } to { background-position-y: 200px; } }
+  #viewport::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(0,0,0,.5) 100%);
+    animation: vignettePulse 6s ease-in-out infinite;
+  }
+  @keyframes vignettePulse { 0%,100% { opacity: .15; } 50% { opacity: .32; } }
+
+  /* Szám-változás "punch" animáció — F1-telemetria-stílusú frissülés-visszajelzés */
+  .kv b { transform-origin: left center; display: inline-block; }
+  .punch { animation: punchPop .25s ease-out; }
+  @keyframes punchPop { 0% { transform: scale(1.28); color: var(--event); } 100% { transform: scale(1); } }
+
+  /* Presenter mód — a diagnosztikai csúszkák alapból rejtve, 'd' billentyűvel
+     vagy ?debug=1 URL-paraméterrel előhívhatók (ld. korábbi élő debug-igény). */
+  #lidar-debug-panel { display: none; }
 </style>
 </head>
 <body>
 <div id="boot-overlay">
   <div id="boot-lines"></div>
 </div>
+<div id="command-toast"></div>
+<div id="glitch-overlay"></div>
 
 <div id="layout">
   <header>
@@ -178,6 +230,7 @@
   </header>
 
   <div id="viewport">
+    <div id="hero-flash"></div>
     <div class="hud-corner" id="hud-tl">
       <div>SEBESSÉG</div>
       <div class="big" id="hud-speed">0.00 m/s</div>
@@ -377,7 +430,14 @@ for (const leg of LEGS) {
   thighPivot.position.set(0, 0, leg.thighZ);
   hipPivot.add(thighPivot);
 
-  const thighMesh = new THREE.Mesh(new THREE.BoxGeometry(0.032, THIGH_LEN, 0.032), accentMat);
+  // Lábanként EGYEDI (klónozott) anyag a comb/lábszár-elemeken, hogy a
+  // hőtérkép (ld. es.onmessage motor_temp ág) színezni tudja őket
+  // egymástól függetlenül — közös anyaggal az egész robot egyszerre
+  // váltana színt egyetlen forró ízület miatt.
+  const legThighMat = accentMat.clone();
+  const legCalfMat = bodyMat.clone();
+
+  const thighMesh = new THREE.Mesh(new THREE.BoxGeometry(0.032, THIGH_LEN, 0.032), legThighMat);
   thighMesh.position.set(0, -THIGH_LEN / 2, 0);
   thighPivot.add(thighMesh);
 
@@ -385,7 +445,7 @@ for (const leg of LEGS) {
   calfPivot.position.set(0, -THIGH_LEN, 0);
   thighPivot.add(calfPivot);
 
-  const calfMesh = new THREE.Mesh(new THREE.BoxGeometry(0.024, CALF_LEN, 0.024), bodyMat);
+  const calfMesh = new THREE.Mesh(new THREE.BoxGeometry(0.024, CALF_LEN, 0.024), legCalfMat);
   calfMesh.position.set(0, -CALF_LEN / 2, 0);
   calfPivot.add(calfMesh);
 
@@ -393,7 +453,7 @@ for (const leg of LEGS) {
   footMesh.position.set(0, -CALF_LEN, 0);
   calfPivot.add(footMesh);
 
-  legPivots.push({ hip: hipPivot, thigh: thighPivot, calf: calfPivot, foot: footMesh });
+  legPivots.push({ hip: hipPivot, thigh: thighPivot, calf: calfPivot, foot: footMesh, thighMat: legThighMat, calfMat: legCalfMat });
 }
 
 function applyMotorQ(q) {
@@ -468,6 +528,19 @@ const lidarPoints = new THREE.Points(lidarGeometry, lidarMaterial);
 lidarPoints.renderOrder = 999; // depthTest:false miatt mindig a tetején rajzolódjon, ne takarja el a robot-test
 scene.add(lidarPoints);
 
+// A 2026-09-04-én felszerelt külső Hesai PandarXT-16 pontfelhője — saját
+// szenzor-koordinátarendszerből jön (a hesai_bridge dekóderéből), a robot
+// testéhez képesti pontos szerelési eltolás/forgás (extrinsic kalibráció)
+// MÉG NINCS megmérve, ezért csak egy becsült, a robot háta fölé helyezett
+// eltolással jelenítjük meg — narancssárga színnel megkülönböztetve a
+// beépített (cián/kék) LiDAR-tól, hogy ez a közelítő jelleg látható legyen.
+const hesaiGeometry = new THREE.BufferGeometry();
+const hesaiMaterial = new THREE.PointsMaterial({ color: 0xffb84d, size: 0.014, transparent: true, opacity: 0.75, depthTest: false });
+const hesaiPoints = new THREE.Points(hesaiGeometry, hesaiMaterial);
+hesaiPoints.renderOrder = 998;
+hesaiPoints.position.set(0, 0.05, 0); // közelítő becslés, nincs kalibrálva
+scene.add(hesaiPoints);
+
 // Diagnosztikai csúszkák: annak kiderítésére, hogy a pontfelhő ténylegesen
 // megérkezik-e, csak a jelenlegi méret/kamera-zoom miatt nem látszik.
 const dbgPointSize = document.getElementById("dbg-point-size");
@@ -527,6 +600,25 @@ async function refreshLidar() {
   } catch (e) {
     statusEl.textContent = "LiDAR: nincs adat";
   }
+
+  try {
+    const res2 = await fetch("/lidar_hesai_proxy");
+    if (!res2.ok) throw new Error("HTTP " + res2.status);
+    const hpoints = await res2.json();
+    if (!Array.isArray(hpoints) || hpoints.length === 0) throw new Error("üres pontfelhő");
+    const hpos = new Float32Array(hpoints.length * 3);
+    hpoints.forEach((p, i) => {
+      hpos[i * 3 + 0] = p[0];
+      hpos[i * 3 + 1] = p[2];
+      hpos[i * 3 + 2] = p[1];
+    });
+    hesaiGeometry.setAttribute("position", new THREE.BufferAttribute(hpos, 3));
+    hesaiGeometry.attributes.position.needsUpdate = true;
+    statusEl.textContent += ` · Hesai: ${hpoints.length} pont élőben`;
+  } catch (e) {
+    // A Hesai opcionális kiegészítő szenzor - csendben kihagyjuk, ha nincs adat,
+    // hogy a fő (beépített) LiDAR-státuszt ne nyomja el.
+  }
 }
 refreshLidar();
 setInterval(refreshLidar, 2000);
@@ -582,11 +674,77 @@ function buildBarRows(container, labels) {
 const tempRows = buildBarRows(document.getElementById("motor-temp-bars"), MOTOR_ORDER);
 const tauRows = buildBarRows(document.getElementById("motor-tau-bars"), MOTOR_ORDER);
 
+let prevMode = null;
+const alertedMotors = new Set();
+const TEMP_ALERT_C = 55;
+
 function updateClock() {
   document.getElementById("clock").textContent = new Date().toLocaleTimeString("hu-HU");
 }
 setInterval(updateClock, 1000);
 updateClock();
+
+// ---------------------------------------------------------------------
+// "Wow"-réteg: hero-flash, parancs-toast+glitch, punch-animáció,
+// presenter-mód, hőtérkép a robot testén — a 2026-09-04-i vizuális
+// workflow-brainstorm szintézise alapján (ld. docs/14-capability-showcase-projekt.md),
+// mert a felhasználó visszajelzése szerint a korábbi verzió "bunch of
+// data thrown to the screen" volt, nem élmény.
+// ---------------------------------------------------------------------
+function flashHero(text, color, holdMs = 1800) {
+  const el = document.getElementById("hero-flash");
+  el.textContent = text;
+  el.style.color = color;
+  el.style.opacity = 1;
+  el.style.transform = "translate(-50%, -50%) scale(1)";
+  clearTimeout(flashHero._t);
+  flashHero._t = setTimeout(() => {
+    el.style.opacity = 0;
+    el.style.transform = "translate(-50%, -50%) scale(.85)";
+  }, holdMs);
+}
+
+function showCommandBanner(label) {
+  const t = document.getElementById("command-toast");
+  t.textContent = "PARANCS: " + label.toUpperCase();
+  t.style.top = "0";
+  const g = document.getElementById("glitch-overlay");
+  g.classList.remove("active");
+  void g.offsetWidth; // reflow, hogy az animáció újra lejátszható legyen
+  g.classList.add("active");
+  clearTimeout(showCommandBanner._t);
+  showCommandBanner._t = setTimeout(() => { t.style.top = "-60px"; }, 1400);
+}
+
+function setPunch(el, text) {
+  if (el.textContent === text) return;
+  el.textContent = text;
+  el.classList.remove("punch");
+  void el.offsetWidth;
+  el.classList.add("punch");
+}
+
+const _heatColor = new THREE.Color();
+function lerpHeatColor(t) {
+  const pct = Math.min(1, Math.max(0, (t - 20) / 50));
+  if (pct < 0.5) _heatColor.lerpColors(new THREE.Color(0x7bffb0), new THREE.Color(0xffb84d), pct * 2);
+  else _heatColor.lerpColors(new THREE.Color(0xffb84d), new THREE.Color(0xff5566), (pct - 0.5) * 2);
+  return _heatColor;
+}
+
+// Presenter mód: a diagnosztikai csúszkák (pontméret/zoom/kamera-fagyasztás)
+// alapból rejtve vannak élő bemutatóhoz — ?debug=1 URL-paraméterrel vagy
+// a 'd' billentyűvel hívhatók elő, amikor tényleg fejlesztői ellenőrzés kell.
+const _params = new URLSearchParams(location.search);
+if (_params.get("debug") === "1") {
+  document.getElementById("lidar-debug-panel").style.display = "block";
+}
+window.addEventListener("keydown", (e) => {
+  if (e.key === "d") {
+    const p = document.getElementById("lidar-debug-panel");
+    p.style.display = p.style.display === "none" || !p.style.display ? "block" : "none";
+  }
+});
 
 // ---------------------------------------------------------------------
 // Boot-szekvencia — csak indításkor fut le egyszer, aztán elhalványul.
@@ -731,14 +889,22 @@ es.onmessage = (ev) => {
 
   document.getElementById("mode-label").textContent = d.mode_label || "—";
   const speed = Math.sqrt((d.velocity_x || 0) ** 2 + (d.velocity_y || 0) ** 2);
-  document.getElementById("hud-speed").textContent = speed.toFixed(2) + " m/s";
+  setPunch(document.getElementById("hud-speed"), speed.toFixed(2) + " m/s");
 
   document.querySelectorAll("#gait-fsm .state").forEach((el) => {
     el.classList.toggle("active", el.dataset.state === d.mode_label);
   });
 
-  document.getElementById("v-voltage").textContent = (d.voltage ?? "—") + " V";
-  document.getElementById("v-current").textContent = (d.current ?? "—") + " A";
+  // Gait-váltás = egy koherens "esemény-pillanat": hero-flash + toast +
+  // glitch egyszerre, hogy a néző érezze, a dashboard TÉNYLEG reagál.
+  if (d.mode_label && d.mode_label !== prevMode) {
+    flashHero(d.mode_label.toUpperCase(), "var(--event)");
+    showCommandBanner(d.mode_label);
+    prevMode = d.mode_label;
+  }
+
+  setPunch(document.getElementById("v-voltage"), (d.voltage ?? "—") + " V");
+  setPunch(document.getElementById("v-current"), (d.current ?? "—") + " A");
   document.getElementById("v-roll").textContent = ((d.roll ?? 0) * 57.2958).toFixed(1) + "°";
   document.getElementById("v-pitch").textContent = ((d.pitch ?? 0) * 57.2958).toFixed(1) + "°";
   document.getElementById("v-yaw").textContent = ((d.yaw ?? 0) * 57.2958).toFixed(1) + "°";
@@ -765,6 +931,24 @@ es.onmessage = (ev) => {
     tempRows[i].fill.style.width = pct + "%";
     tempRows[i].fill.style.background = tempColor(t);
     tempRows[i].val.textContent = t + "°";
+
+    // Hőtérkép közvetlenül a robot testén — a 12 lineáris sáv helyett/mellett
+    // az adat a 3D modellre költözik, hogy "hol van most a legmelegebb
+    // ízület" azonnal látható legyen, ne kelljen 12 sort végigolvasni.
+    const legIdx = Math.floor(i / 3), part = i % 3;
+    const mat = part === 1 ? legPivots[legIdx].thighMat : part === 2 ? legPivots[legIdx].calfMat : null;
+    if (mat) {
+      const col = lerpHeatColor(t);
+      mat.emissive.copy(col);
+      mat.emissiveIntensity = 0.3 + Math.min(1, (t - 30) / 40) * 1.1;
+    }
+
+    if (t >= TEMP_ALERT_C && !alertedMotors.has(i)) {
+      alertedMotors.add(i);
+      flashHero("⚠ " + MOTOR_ORDER[i] + " " + t + "°C", "var(--danger)", 2200);
+    } else if (t < TEMP_ALERT_C - 3) {
+      alertedMotors.delete(i); // hiszterézis, ne villogjon a küszöb körül
+    }
   });
 
   (d.motor_tau || []).forEach((tau, i) => {

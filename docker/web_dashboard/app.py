@@ -40,6 +40,7 @@ logger = logging.getLogger("nero_go2.web_dashboard")
 app = Flask(__name__)
 
 WEBRTC_BRIDGE_URL = os.environ.get("WEBRTC_BRIDGE_URL", "http://localhost:5001")
+HESAI_BRIDGE_URL = os.environ.get("HESAI_BRIDGE_URL", "http://localhost:5003")
 
 # Kritikus tudományos-hitelességi jelölés a /showcase-hez: minden onnan
 # kimenő adatcsomag jelzi, hogy szintetikus (mock) vagy valós robot-adat —
@@ -421,6 +422,17 @@ def camera_feed():
 def lidar_proxy():
     try:
         r = requests.get(f"{WEBRTC_BRIDGE_URL}/lidar", timeout=2)
+        return Response(r.content, status=r.status_code, mimetype="application/json")
+    except requests.RequestException as e:
+        return jsonify({"error": str(e)}), 502
+
+
+@app.route("/lidar_hesai_proxy")
+def lidar_hesai_proxy():
+    """A 2026-09-04-én felszerelt külső Hesai PandarXT-16 navigációs LiDAR
+    pontfelhője, a hesai_bridge szolgáltatáson (:5003) keresztül."""
+    try:
+        r = requests.get(f"{HESAI_BRIDGE_URL}/lidar", timeout=2)
         return Response(r.content, status=r.status_code, mimetype="application/json")
     except requests.RequestException as e:
         return jsonify({"error": str(e)}), 502
