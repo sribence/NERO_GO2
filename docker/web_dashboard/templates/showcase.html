@@ -302,6 +302,37 @@ scene.add(robotGroup);
 const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(BODY.x, BODY.y, BODY.z), bodyMat);
 robotGroup.add(bodyMesh);
 
+// Testhez rögzített "ELÜL" tájoló-jelölő — mivel a kamera folyamatosan
+// körbeforog (ld. lent), enélkül könnyű összetéveszteni, melyik oldal az
+// eleje/hátulja (2026-09-04: élő teszten pont ez okozott zavart —
+// a láb-adat maga helyes volt, csak a kamera épp hátulról nézett rá).
+// A jelölő a robotGroup GYERMEKE, tehát vele együtt forog/dől.
+function makeTextSprite(text, color) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128; canvas.height = 48;
+  const ctx = canvas.getContext("2d");
+  ctx.font = "bold 28px monospace";
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+  ctx.fillText(text, 64, 34);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(0.25, 0.09, 1);
+  return sprite;
+}
+const frontLabel = makeTextSprite("ELÜL", "#22e5ff");
+frontLabel.position.set(BODY.x / 2 + 0.14, 0.06, 0);
+robotGroup.add(frontLabel);
+
+const frontArrow = new THREE.Mesh(
+  new THREE.ConeGeometry(0.025, 0.07, 12),
+  new THREE.MeshStandardMaterial({ color: 0x22e5ff, emissive: 0x0a3540 })
+);
+frontArrow.position.set(BODY.x / 2 + 0.03, 0, 0);
+frontArrow.rotation.z = -Math.PI / 2; // a kúp hegye +X irányba (előre) mutasson
+robotGroup.add(frontArrow);
+
 // legPivots[legIdx] = { hip, thigh, calf } — THREE.Group-ok, .rotation.x/.z-t
 // állítjuk majd az élő motor_q adatból.
 const legPivots = [];
@@ -314,6 +345,13 @@ for (const leg of LEGS) {
   const hipMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.05, 16), jointMat);
   hipMesh.rotation.z = Math.PI / 2; // X-tengely körül forog majd a pivot, a henger vizuálisan X-irányban áll
   hipPivot.add(hipMesh);
+
+  // Láb-név címke a csípőn — a robotGroup-nak (nem a hipPivotnak) a
+  // gyermeke, hogy ne forogjon el a saját ízület-mozgásával, csak a
+  // robot egészének orientációjával.
+  const legLabel = makeTextSprite(leg.name, "#7bffb0");
+  legLabel.position.set(leg.x, 0.09, leg.z * 1.6);
+  robotGroup.add(legLabel);
 
   const thighPivot = new THREE.Group();
   thighPivot.position.set(0, 0, leg.thighZ);
