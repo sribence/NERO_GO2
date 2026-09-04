@@ -145,39 +145,105 @@ class _FakeSportClient:
 
 # Neutral standing pose (hip, thigh, calf), radians — well inside every
 # joint's real URDF limit (ld. docs/14-capability-showcase-projekt.md),
-# same value for all four legs; per-leg sign flips happen in _gait_pose().
+# same value for all four legs; per-leg sign flips happen in the pose
+# functions below. Leg order everywhere here matches MOTOR_NAMES: FR,FL,RR,RL.
 _STAND_HIP, _STAND_THIGH, _STAND_CALF = 0.0, 0.8, -1.5
 
-# Which of the 4 legs (in MOTOR_NAMES order: FR, FL, RR, RL) swings forward
-# together in a trot — diagonal pairs move in phase, the other two in
-# anti-phase, which is what actually makes it read as "walking" and not
-# just "wobbling in place".
+# Diagonal-pair trot phase — FR+RL swing together, FL+RR in anti-phase.
+# This (not literal mocap) is what makes the sinusoidal leg motion read as
+# "walking" rather than just wobbling in place.
 _TROT_PHASE = [0.0, math.pi, math.pi, 0.0]  # FR, FL, RR, RL
 
 
-def _gait_pose(t, walking: bool):
-    """Returns a flat 12-element joint-angle list (MOTOR_NAMES order) for
-    time t. Stand: fixed neutral pose. Walk: a simple sinusoidal trot —
-    not motion-captured, just enough to visibly animate all 12 joints for
-    a long-running showcase demo."""
+def _pose_stand(t):
+    return [_STAND_HIP, _STAND_THIGH, _STAND_CALF] * 4
+
+
+def _pose_walk(t):
     q = []
-    for leg_i, phase in enumerate(_TROT_PHASE):
-        if walking:
-            swing = math.sin(t * 4.0 + phase)
-            hip = _STAND_HIP + 0.05 * math.sin(t * 4.0 + phase + math.pi / 2)
-            thigh = _STAND_THIGH + 0.35 * swing
-            calf = _STAND_CALF - 0.25 * max(swing, 0.0)
-        else:
-            hip, thigh, calf = _STAND_HIP, _STAND_THIGH, _STAND_CALF
+    for phase in _TROT_PHASE:
+        swing = math.sin(t * 4.0 + phase)
+        hip = _STAND_HIP + 0.05 * math.sin(t * 4.0 + phase + math.pi / 2)
+        thigh = _STAND_THIGH + 0.35 * swing
+        calf = _STAND_CALF - 0.25 * max(swing, 0.0)
         q.extend([hip, thigh, calf])
     return q
 
 
+def _pose_wave(t):
+    """FR leg lifts and waves side to side, the other three hold a stand —
+    a stylised stand-in for the real SportClient.Hello() gesture (which we
+    have no joint-trajectory data for; this is NOT a motion-captured
+    reproduction of it, just a readable "waving" silhouette for the demo)."""
+    q = [
+        0.35 * math.sin(t * 5.0), 0.05, -0.55,  # FR: lifted + waving
+        _STAND_HIP, _STAND_THIGH, _STAND_CALF,   # FL
+        _STAND_HIP, _STAND_THIGH, _STAND_CALF,   # RR
+        _STAND_HIP, _STAND_THIGH, _STAND_CALF,   # RL
+    ]
+    return q
+
+
+def _pose_sit(t):
+    """Rear legs tuck under, front legs stay extended — a seated posture."""
+    wobble = 0.02 * math.sin(t * 1.5)
+    q = []
+    for leg_i in range(4):
+        if leg_i in (2, 3):  # RR, RL — tucked
+            q.extend([_STAND_HIP + wobble, 1.9, -2.6])
+        else:  # FR, FL — stay standing
+            q.extend([_STAND_HIP, _STAND_THIGH, _STAND_CALF + wobble])
+    return q
+
+
+def _pose_bow(t):
+    """Front end dips in a slow bow/nod — our simplified stand-in for
+    SportClient.Heart() (no real joint trajectory available for that either;
+    labelled clearly in the UI as a stylised gesture, not the literal move)."""
+    dip = 0.25 + 0.08 * math.sin(t * 2.0)
+    q = []
+    for leg_i in range(4):
+        if leg_i in (0, 1):  # FR, FL — bow forward
+            q.extend([_STAND_HIP, _STAND_THIGH + dip, _STAND_CALF - dip * 0.6])
+        else:
+            q.extend([_STAND_HIP, _STAND_THIGH, _STAND_CALF])
+    return q
+
+
+# Demo choreography: (label, duration_s, pose_fn, velocity_x_while_active).
+# Cycles forever so a 45-90+ min showcase session never looks frozen or
+# repeats too predictably. "Séta" gets the longest slot since walking gait
+# is the most visually informative of the leg mechanics.
+_SHOWCASE_SEQUENCE = [
+    ("Állás", 3.0, _pose_stand, 0.0),
+    ("Séta", 6.0, _pose_walk, 0.6),
+    ("Állás", 2.0, _pose_stand, 0.0),
+    ("Integetés", 3.5, _pose_wave, 0.0),
+    ("Állás", 2.0, _pose_stand, 0.0),
+    ("Ülés", 3.5, _pose_sit, 0.0),
+    ("Állás", 2.0, _pose_stand, 0.0),
+    ("Köszöntés (\"szív\")", 3.0, _pose_bow, 0.0),
+]
+_SHOWCASE_CYCLE_S = sum(seg[1] for seg in _SHOWCASE_SEQUENCE)
+
+
+def _showcase_frame(t):
+    """Picks the current choreography segment for time t and returns
+    (label, joint_angles, velocity_x)."""
+    phase_t = t % _SHOWCASE_CYCLE_S
+    acc = 0.0
+    for label, dur, pose_fn, vx in _SHOWCASE_SEQUENCE:
+        if phase_t < acc + dur:
+            return label, pose_fn(t), vx
+        acc += dur
+    return _SHOWCASE_SEQUENCE[0][0], _pose_stand(t), 0.0
+
+
 def _init_mock_sdk():
     """MOCK_SDK=1 path — no unitree_sdk2py, no DDS, no real robot. Fills
-    dog_data with plausible oscillating values (including a 12-joint gait
-    cycle for the /showcase 3D view) on a timer, so the dashboard has
-    something to show while developing the UI away from the robot (ld.
+    dog_data with plausible oscillating values (including the full 12-joint
+    showcase choreography) on a timer, so the dashboard has something to
+    show while developing the UI away from the robot (ld.
     docs/00-BIZTONSAGI-SZABALYOK.md — the robot is expensive/fragile/shared,
     so UI work should not require robot access)."""
     global sdk_ready, sport_client
@@ -185,18 +251,15 @@ def _init_mock_sdk():
     sdk_ready = True
     logger.info("MOCK SportClient ready (MOCK_SDK=1, no real robot involved)")
     t0 = time.time()
-    # Repeating demo choreography so a long showcase session (45-90+ min)
-    # never looks frozen: stand -> walk -> stand -> ...
-    CYCLE_S = 12.0
     while True:
         t = time.time() - t0
-        walking = (t % CYCLE_S) > (CYCLE_S * 0.4)
-        q = _gait_pose(t, walking)
+        label, q, vx = _showcase_frame(t)
+        walking = label == "Séta"
         with _lock:
             dog_data["voltage"] = round(28.5 - 0.05 * math.sin(t * 0.2), 2)
             dog_data["current"] = round(1.0 + 0.3 * math.sin(t), 2)
             dog_data["avg_temp"] = round(35 + 2 * math.sin(t * 0.1), 1)
-            dog_data["velocity_x"] = round(0.6 * math.sin(t * 0.5), 2) if walking else 0.0
+            dog_data["velocity_x"] = round(vx * math.sin(t * 0.5) if walking else vx, 2)
             dog_data["velocity_y"] = 0.0
             dog_data["velocity_z"] = 0.0
             dog_data["yaw_speed"] = round(0.1 * math.sin(t * 0.3), 3)
@@ -209,7 +272,7 @@ def _init_mock_sdk():
                 for i in range(12)
             ]
             dog_data["motor_temp"] = [round(32 + 6 * (i % 3) + 2 * math.sin(t * 0.05 + i)) for i in range(12)]
-            dog_data["mode_label"] = "Járás" if walking else "Állás"
+            dog_data["mode_label"] = label
         time.sleep(0.05)
 
 

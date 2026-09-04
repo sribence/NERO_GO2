@@ -31,6 +31,11 @@
     grid-template-rows: 56px 1fr;
     height: 100vh;
   }
+  @media (max-width: 900px) {
+    #layout { grid-template-columns: 1fr 240px; }
+    #cam-panel { width: 130px; }
+    header .title { font-size: 12px; }
+  }
   header {
     grid-column: 1 / 3;
     display: flex;
@@ -71,6 +76,39 @@
   .bar-val { width: 40px; text-align: right; color: var(--muted); flex-shrink: 0; }
   #badge-sdk { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--muted); color: var(--muted); }
   #badge-sdk.ok { color: var(--accent2); border-color: var(--accent2); }
+
+  /* Kamera-HUD panel a 3D nézet sarkában */
+  #cam-panel {
+    position: absolute; top: 14px; right: 14px; width: 220px;
+    border: 1px solid var(--accent); border-radius: 4px; overflow: hidden;
+    background: #000; box-shadow: 0 0 18px rgba(34,229,255,0.25);
+  }
+  #cam-panel .cam-label {
+    position: absolute; top: 0; left: 0; right: 0; padding: 4px 8px;
+    font-size: 10px; letter-spacing: 0.1em; color: var(--accent);
+    background: linear-gradient(rgba(0,0,0,0.7), transparent); z-index: 2;
+  }
+  #cam-panel img { width: 100%; display: block; aspect-ratio: 4/3; object-fit: cover; opacity: 0.92; }
+  #cam-panel .reticle {
+    position: absolute; inset: 0; pointer-events: none;
+    border: 1px solid rgba(34,229,255,0.35);
+  }
+  #cam-panel .reticle::before, #cam-panel .reticle::after {
+    content: ""; position: absolute; background: var(--accent); opacity: 0.6;
+  }
+  #cam-panel .reticle::before { top: 50%; left: 8px; right: 8px; height: 1px; }
+  #cam-panel .reticle::after { left: 50%; top: 8px; bottom: 8px; width: 1px; }
+  #cam-panel .scanline {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scan 2.4s linear infinite; opacity: 0.55;
+  }
+  @keyframes scan { 0% { top: 0%; } 100% { top: 100%; } }
+
+  /* Képesség-legenda (statikus, a robot valós műszaki adatai) */
+  #legend-panel .legend-item { font-size: 11px; margin-bottom: 8px; padding-left: 10px; border-left: 2px solid var(--accent); }
+  #legend-panel .legend-item b { display: block; color: var(--text); font-size: 12px; }
+  #legend-panel .legend-item span { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -90,7 +128,13 @@
       <div class="big" id="hud-speed">0.00 m/s</div>
     </div>
     <div class="hud-corner" id="hud-bl">
-      NERO_GO2 &mdash; Unitree Go2 EDU &mdash; élő ízület-szimuláció
+      NERO_GO2 &mdash; Unitree Go2 EDU &mdash; élő ízület-szimuláció &mdash; <span id="lidar-status">LiDAR: —</span>
+    </div>
+    <div id="cam-panel">
+      <div class="cam-label">ELÜLSŐ KAMERA</div>
+      <img id="cam-feed" src="/camera_feed" alt="élő kamera">
+      <div class="reticle"></div>
+      <div class="scanline"></div>
     </div>
   </div>
 
@@ -116,6 +160,18 @@
     <div class="panel">
       <h3>Ízület-terhelés (Nm, becsült)</h3>
       <div id="motor-tau-bars"></div>
+    </div>
+
+    <div class="panel" id="legend-panel">
+      <h3>Képességek &amp; műszaki adatok</h3>
+      <div class="legend-item"><b>🟢 12 szabadságfok (DOF)</b><span>3 forgó ízület / láb — a hivatalos Unitree URDF-ből, ma lekérve</span></div>
+      <div class="legend-item"><b>🟢 Csípő-ízület: 23.7 Nm / 30.1 rad/s</b><span>±60° mozgástartomány</span></div>
+      <div class="legend-item"><b>🟢 Térd-ízület: 45.43 Nm / 15.70 rad/s</b><span>majdnem kétszer akkora nyomaték, feleannyi sebesség — ez viseli a talajreakció-erő nagy részét landoláskor</span></div>
+      <div class="legend-item"><b>🟡 Fedélzeti AI: 40&ndash;100 TOPS</b><span>Jetson Orin Nano/NX — helyben futó AI-inferencia, nem felhő-függő</span></div>
+      <div class="legend-item"><b>🟢 Élő szenzor-fúzió</b><span>kamera + LiDAR + IMU + lábankénti erő-visszacsatolás egy dashboardon</span></div>
+      <div class="legend-item"><b>🟡 Nyílt SDK / ROS-kompatibilitás</b><span>Python/C++/ROS — kutatás-fejlesztésre nyitott EDU-platform</span></div>
+      <div class="legend-item"><b>🟡 Autonóm SLAM-navigáció</b><span>LiDAR-alapú térképezés + útvonaltervezés (nyílt forráskódú stackekben dokumentált)</span></div>
+      <div style="font-size:9px; color:var(--muted); margin-top:10px; line-height:1.5;">🟢 URDF-ből igazolt &middot; 🟡 hivatalos/kereskedelmi forrás, nem elsődleges datasheet</div>
     </div>
   </div>
 </div>
@@ -230,6 +286,40 @@ function applyMotorQ(q) {
     legPivots[i].calf.rotation.z = q[base + 2];
   });
 }
+
+// ---------------------------------------------------------------------
+// LiDAR pontfelhő — /lidar_proxy-n keresztül (app.py proxyolja a
+// webrtc_bridge /lidar végpontját; mock módban a mock_robot szolgáltatja
+// a szintetikus pontfelhőt). Robot-koordináta [x,y,z] -> three [x,z,y],
+// ugyanaz a leképzés, mint a robotmodellnél.
+// ---------------------------------------------------------------------
+const lidarGeometry = new THREE.BufferGeometry();
+const lidarMaterial = new THREE.PointsMaterial({ color: 0x22e5ff, size: 0.012, transparent: true, opacity: 0.75 });
+const lidarPoints = new THREE.Points(lidarGeometry, lidarMaterial);
+scene.add(lidarPoints);
+
+async function refreshLidar() {
+  const statusEl = document.getElementById("lidar-status");
+  try {
+    const res = await fetch("/lidar_proxy");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const points = await res.json();
+    if (!Array.isArray(points) || points.length === 0) throw new Error("üres pontfelhő");
+    const positions = new Float32Array(points.length * 3);
+    points.forEach((p, i) => {
+      positions[i * 3 + 0] = p[0];
+      positions[i * 3 + 1] = p[2];
+      positions[i * 3 + 2] = p[1];
+    });
+    lidarGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    lidarGeometry.attributes.position.needsUpdate = true;
+    statusEl.textContent = `LiDAR: ${points.length} pont élőben`;
+  } catch (e) {
+    statusEl.textContent = "LiDAR: nincs adat";
+  }
+}
+refreshLidar();
+setInterval(refreshLidar, 2000);
 
 function applyBodyOrientation(roll, pitch, yaw) {
   // robot roll(x)/pitch(y)/yaw(z) -> three: roll marad X, pitch -> Z, yaw -> Y
