@@ -41,6 +41,12 @@ app = Flask(__name__)
 
 WEBRTC_BRIDGE_URL = os.environ.get("WEBRTC_BRIDGE_URL", "http://localhost:5001")
 
+# Kritikus tudományos-hitelességi jelölés a /showcase-hez: minden onnan
+# kimenő adatcsomag jelzi, hogy szintetikus (mock) vagy valós robot-adat —
+# ld. docs/14-capability-showcase-projekt.md, a workflow-brainstorm
+# "tudományos lektor" szerepének első számú kritikus észrevétele.
+DATA_SOURCE = "mock" if os.environ.get("MOCK_SDK") == "1" else "live"
+
 MOVE_SPEED = 0.5
 TURN_SPEED = 1.0
 ARM_TIMEOUT_S = 30
@@ -387,6 +393,7 @@ def showcase_data():
                     "motor_names": MOTOR_NAMES,
                 }
                 payload["sdk_ready"] = sdk_ready
+                payload["data_source"] = DATA_SOURCE
             yield f"data: {json.dumps(payload)}\n\n"
             time.sleep(0.1)
 

@@ -109,14 +109,56 @@
   #legend-panel .legend-item { font-size: 11px; margin-bottom: 8px; padding-left: 10px; border-left: 2px solid var(--accent); }
   #legend-panel .legend-item b { display: block; color: var(--text); font-size: 12px; }
   #legend-panel .legend-item span { color: var(--muted); }
+
+  /* Boot-szekvencia — indításkor egyszer lefut, aztán eltűnik */
+  #boot-overlay {
+    position: fixed; inset: 0; z-index: 100; background: #05070a;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.6s ease;
+  }
+  #boot-overlay.hidden { opacity: 0; pointer-events: none; }
+  #boot-lines { font-size: 13px; color: var(--accent2); line-height: 1.9; text-shadow: 0 0 8px rgba(123,255,176,.4); }
+  #boot-lines .done { color: var(--muted); }
+  #boot-lines .cursor { display: inline-block; width: 8px; background: var(--accent2); animation: blink 0.8s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* MOCK/LIVE adatforrás-jelölő — kritikus tudományos hitelesség */
+  #data-source-badge {
+    font-size: 11px; padding: 3px 10px; border-radius: 3px; letter-spacing: 0.05em; font-weight: bold;
+  }
+  #data-source-badge.mock { color: #05070a; background: repeating-linear-gradient(45deg, var(--warn), var(--warn) 6px, #2a1e0a 6px, #2a1e0a 12px); }
+  #data-source-badge.live { color: #05070a; background: var(--accent2); }
+  #confidence-index { font-size: 10px; color: var(--muted); margin-left: 8px; }
+
+  /* IMU mesterséges horizont */
+  #horizon-wrap { display: flex; justify-content: center; }
+
+  /* Ember-vs-robot kontraszt sáv */
+  #contrast-strip { display: flex; font-size: 10px; color: var(--muted); gap: 4px; align-items: center; }
+  #contrast-strip .vs { color: var(--accent); }
+
+  /* Gait állapotgép diagram */
+  #gait-fsm { display: flex; align-items: center; gap: 4px; font-size: 10px; flex-wrap: wrap; }
+  #gait-fsm .state { padding: 4px 8px; border: 1px solid var(--border); border-radius: 3px; color: var(--muted); }
+  #gait-fsm .state.active { border-color: var(--accent2); color: var(--accent2); background: rgba(123,255,176,0.08); box-shadow: 0 0 8px rgba(123,255,176,0.3); }
+  #gait-fsm .arrow { color: var(--border); }
+
+  /* Teljesítmény sparkline */
+  #power-canvas { width: 100%; height: 40px; display: block; }
 </style>
 </head>
 <body>
+<div id="boot-overlay">
+  <div id="boot-lines"></div>
+</div>
+
 <div id="layout">
   <header>
     <div class="title">NERO_GO2 <b>&mdash; CAPABILITY SHOWCASE</b></div>
     <div class="mode" id="mode-label">&mdash;</div>
     <div style="display:flex; align-items:center; gap:14px;">
+      <span id="data-source-badge">&mdash;</span>
+      <span id="confidence-index"></span>
       <span id="badge-sdk">SDK: &mdash;</span>
       <span class="clock" id="clock"></span>
     </div>
@@ -129,9 +171,13 @@
     </div>
     <div class="hud-corner" id="hud-bl">
       NERO_GO2 &mdash; Unitree Go2 EDU &mdash; élő ízület-szimuláció &mdash; <span id="lidar-status">LiDAR: —</span>
+      <div id="gait-fsm" style="margin-top:6px;"></div>
+      <div id="contrast-strip" style="margin-top:6px;">
+        <span>Emberi reakcióidő ~250 ms</span><span class="vs">vs</span><span>NERO_GO2 vezérlőhurok ~10 ms</span>
+      </div>
     </div>
     <div id="cam-panel">
-      <div class="cam-label">ELÜLSŐ KAMERA</div>
+      <div class="cam-label">ELÜLSŐ KAMERA &mdash; <span id="cam-source-label">SZIMULÁLT</span></div>
       <img id="cam-feed" src="/camera_feed" alt="élő kamera">
       <div class="reticle"></div>
       <div class="scanline"></div>
@@ -147,9 +193,24 @@
 
     <div class="panel">
       <h3>IMU (test-orientáció)</h3>
+      <div id="horizon-wrap"><canvas id="horizon-canvas" width="140" height="90"></canvas></div>
       <div class="kv"><span>Roll</span><b id="v-roll">&mdash;</b></div>
       <div class="kv"><span>Pitch</span><b id="v-pitch">&mdash;</b></div>
       <div class="kv"><span>Yaw</span><b id="v-yaw">&mdash;</b></div>
+    </div>
+
+    <div class="panel">
+      <h3>Becsült teljesítményfelvétel (P = &tau;&times;&omega;)</h3>
+      <canvas id="power-canvas" width="300" height="40"></canvas>
+      <div class="kv" style="margin-top:6px;"><span>Pillanatnyi</span><b id="v-power">&mdash;</b></div>
+      <div class="kv"><span>Összesen (session)</span><b id="v-energy">&mdash;</b></div>
+      <div style="font-size:9px; color:var(--muted); margin-top:4px;">valós mérnöki képlet, szintetikus bemenő adatokon</div>
+    </div>
+
+    <div class="panel">
+      <h3>Stabilitás (súlypont vs. támasztó-poligon)</h3>
+      <div class="kv"><span>Állapot</span><b id="v-stability">&mdash;</b></div>
+      <div style="font-size:9px; color:var(--muted); margin-top:4px;">zöld = statikusan stabil, sárga = csak a lépésritmus tartja egyensúlyban</div>
     </div>
 
     <div class="panel">
@@ -274,7 +335,7 @@ for (const leg of LEGS) {
   footMesh.position.set(0, -CALF_LEN, 0);
   calfPivot.add(footMesh);
 
-  legPivots.push({ hip: hipPivot, thigh: thighPivot, calf: calfPivot });
+  legPivots.push({ hip: hipPivot, thigh: thighPivot, calf: calfPivot, foot: footMesh });
 }
 
 function applyMotorQ(q) {
@@ -288,15 +349,77 @@ function applyMotorQ(q) {
 }
 
 // ---------------------------------------------------------------------
+// Súlypont (CoM, közelítő — testközéppont) + támasztó-poligon: klasszikus
+// lábas-robotikai stabilitás-fogalom. A 4 lábvég világkoordinátáját véve
+// kirajzoljuk a talajra vetített konvex négyszöget, és megnézzük, a CoM
+// vetülete belül van-e — statikus vs. dinamikus stabilitás szemléltetése.
+// ---------------------------------------------------------------------
+const comMarker = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 12), new THREE.MeshBasicMaterial({ color: 0xffb84d }));
+scene.add(comMarker);
+
+const supportGeom = new THREE.BufferGeometry();
+const supportMat = new THREE.LineBasicMaterial({ color: 0x7bffb0, transparent: true, opacity: 0.6 });
+const supportLine = new THREE.LineLoop(supportGeom, supportMat);
+scene.add(supportLine);
+
+function pointInPolygon(px, pz, poly) {
+  // Sugár-vetéses (ray casting) benne-van teszt XZ síkban.
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], zi = poly[i][1], xj = poly[j][0], zj = poly[j][1];
+    const intersect = ((zi > pz) !== (zj > pz)) && (px < (xj - xi) * (pz - zi) / (zj - zi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function updateStability() {
+  const worldPos = new THREE.Vector3();
+  const feet = legPivots.map((lp) => { lp.foot.getWorldPosition(worldPos); return [worldPos.x, worldPos.z]; });
+  // Kirajzolható sorrend (négyszög, ne kereszteződjön): FR, FL, RL, RR
+  const order = [0, 1, 3, 2];
+  const positions = new Float32Array(order.length * 3);
+  order.forEach((legIdx, i) => {
+    positions[i * 3 + 0] = feet[legIdx][0];
+    positions[i * 3 + 1] = 0.002;
+    positions[i * 3 + 2] = feet[legIdx][1];
+  });
+  supportGeom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  supportGeom.attributes.position.needsUpdate = true;
+
+  const comWorld = new THREE.Vector3();
+  bodyMesh.getWorldPosition(comWorld);
+  comMarker.position.set(comWorld.x, 0.004, comWorld.z);
+
+  const stable = pointInPolygon(comWorld.x, comWorld.z, feet);
+  supportMat.color.set(stable ? 0x7bffb0 : 0xffb84d);
+  comMarker.material.color.set(stable ? 0x7bffb0 : 0xffb84d);
+  const el = document.getElementById("v-stability");
+  if (el) el.textContent = stable ? "Statikusan stabil" : "Dinamikusan stabilizált (lépésritmus tartja)";
+}
+
+// ---------------------------------------------------------------------
 // LiDAR pontfelhő — /lidar_proxy-n keresztül (app.py proxyolja a
 // webrtc_bridge /lidar végpontját; mock módban a mock_robot szolgáltatja
 // a szintetikus pontfelhőt). Robot-koordináta [x,y,z] -> three [x,z,y],
 // ugyanaz a leképzés, mint a robotmodellnél.
 // ---------------------------------------------------------------------
 const lidarGeometry = new THREE.BufferGeometry();
-const lidarMaterial = new THREE.PointsMaterial({ color: 0x22e5ff, size: 0.012, transparent: true, opacity: 0.75 });
+const lidarMaterial = new THREE.PointsMaterial({ size: 0.012, transparent: true, opacity: 0.8, vertexColors: true });
 const lidarPoints = new THREE.Points(lidarGeometry, lidarMaterial);
 scene.add(lidarPoints);
+
+// Forgó "sweep" sugár — RViz-szerű felismerhető LiDAR-vizualizáció,
+// tisztán díszítő elem (a valós scan-irányt nem követi, csak a
+// forgó-szenzor benyomását kelti).
+const sweepGeom = new THREE.PlaneGeometry(3, 0.015);
+const sweepMat = new THREE.MeshBasicMaterial({ color: 0x22e5ff, transparent: true, opacity: 0.18, side: THREE.DoubleSide });
+const sweepBeam = new THREE.Mesh(sweepGeom, sweepMat);
+sweepBeam.position.set(1.5, 0.01, 0);
+sweepBeam.rotation.x = -Math.PI / 2;
+const sweepPivot = new THREE.Group();
+sweepPivot.add(sweepBeam);
+scene.add(sweepPivot);
 
 async function refreshLidar() {
   const statusEl = document.getElementById("lidar-status");
@@ -306,12 +429,20 @@ async function refreshLidar() {
     const points = await res.json();
     if (!Array.isArray(points) || points.length === 0) throw new Error("üres pontfelhő");
     const positions = new Float32Array(points.length * 3);
+    const colors = new Float32Array(points.length * 3);
+    const c = new THREE.Color();
     points.forEach((p, i) => {
       positions[i * 3 + 0] = p[0];
       positions[i * 3 + 1] = p[2];
       positions[i * 3 + 2] = p[1];
+      const dist = Math.sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
+      // közel = cián, távol = mélykék — távolság-alapú színezés, mint egy valós LiDAR-viewerben
+      const t = Math.min(1, dist / 3.5);
+      c.setHSL(0.55 - t * 0.25, 1.0, 0.55 - t * 0.15);
+      colors[i * 3 + 0] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
     });
     lidarGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    lidarGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     lidarGeometry.attributes.position.needsUpdate = true;
     statusEl.textContent = `LiDAR: ${points.length} pont élőben`;
   } catch (e) {
@@ -335,12 +466,17 @@ function onResize() {
 }
 window.addEventListener("resize", onResize);
 
+let sweepAngle = 0;
 function animate() {
   requestAnimationFrame(animate);
   camAngle += 0.0025;
   const radius = 1.15;
   camera.position.set(Math.cos(camAngle) * radius, 0.55, Math.sin(camAngle) * radius);
   camera.lookAt(CAM_TARGET);
+  sweepAngle += 0.02;
+  sweepPivot.rotation.y = sweepAngle;
+  robotGroup.updateMatrixWorld(true);
+  updateStability();
   renderer.render(scene, camera);
 }
 animate();
@@ -374,16 +510,154 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+// ---------------------------------------------------------------------
+// Boot-szekvencia — csak indításkor fut le egyszer, aztán elhalványul.
+// Tisztán frontend animáció, nincs szerver-hívás.
+// ---------------------------------------------------------------------
+const BOOT_LINES = [
+  "INITIALIZING JOINT TELEMETRY...",
+  "CONNECTING TO DDS CHANNEL...",
+  "IMU CALIBRATED",
+  "LIDAR ONLINE",
+  "CAMERA FEED LINKED",
+  "NERO_GO2 CAPABILITY SHOWCASE — READY",
+];
+(function runBoot() {
+  const el = document.getElementById("boot-lines");
+  let i = 0;
+  function next() {
+    if (i >= BOOT_LINES.length) {
+      setTimeout(() => document.getElementById("boot-overlay").classList.add("hidden"), 400);
+      return;
+    }
+    const line = document.createElement("div");
+    line.textContent = BOOT_LINES[i];
+    if (i < BOOT_LINES.length - 1) line.className = "done";
+    el.appendChild(line);
+    i++;
+    setTimeout(next, i === BOOT_LINES.length ? 500 : 320);
+  }
+  next();
+})();
+
+// ---------------------------------------------------------------------
+// Gait állapotgép diagram — a mode_label alapján kiemeli az aktuális
+// fázist a lehetséges póz-repertoárban.
+// ---------------------------------------------------------------------
+const GAIT_STATES = ["Állás", "Séta", "Integetés", "Ülés", "Köszöntés (\"szív\")"];
+(function buildGaitFsm() {
+  const el = document.getElementById("gait-fsm");
+  GAIT_STATES.forEach((s, i) => {
+    const box = document.createElement("span");
+    box.className = "state";
+    box.dataset.state = s;
+    box.textContent = s;
+    el.appendChild(box);
+    if (i < GAIT_STATES.length - 1) {
+      const arrow = document.createElement("span");
+      arrow.className = "arrow";
+      arrow.textContent = "→";
+      el.appendChild(arrow);
+    }
+  });
+})();
+
+// ---------------------------------------------------------------------
+// IMU mesterséges horizont — repülőgép-HUD-szerű, roll/pitch alapján
+// forgatott/eltolt horizontvonal, 2D canvas-transzformációval.
+// ---------------------------------------------------------------------
+const horizonCtx = document.getElementById("horizon-canvas").getContext("2d");
+function drawHorizon(roll, pitch) {
+  const w = 140, h = 90;
+  horizonCtx.clearRect(0, 0, w, h);
+  horizonCtx.save();
+  horizonCtx.translate(w / 2, h / 2);
+  horizonCtx.rotate(-roll);
+  const pitchOffset = Math.max(-30, Math.min(30, (pitch || 0) * 57.2958 * 2));
+  horizonCtx.fillStyle = "#0d2230";
+  horizonCtx.fillRect(-100, pitchOffset - 100, 200, 100);
+  horizonCtx.fillStyle = "#241a0d";
+  horizonCtx.fillRect(-100, pitchOffset, 200, 100);
+  horizonCtx.strokeStyle = "#22e5ff";
+  horizonCtx.lineWidth = 2;
+  horizonCtx.beginPath();
+  horizonCtx.moveTo(-100, pitchOffset);
+  horizonCtx.lineTo(100, pitchOffset);
+  horizonCtx.stroke();
+  horizonCtx.restore();
+  // rögzített referencia-jelölő (a robot orra)
+  horizonCtx.strokeStyle = "#7bffb0";
+  horizonCtx.lineWidth = 2;
+  horizonCtx.beginPath();
+  horizonCtx.moveTo(w / 2 - 14, h / 2);
+  horizonCtx.lineTo(w / 2 - 4, h / 2);
+  horizonCtx.moveTo(w / 2 + 4, h / 2);
+  horizonCtx.lineTo(w / 2 + 14, h / 2);
+  horizonCtx.stroke();
+}
+
+// ---------------------------------------------------------------------
+// Teljesítmény: P = |τ·ω| izületenként összegezve, Wh-ban integrálva.
+// ω-t a motor_q két egymást követő SSE-keret közti különbségéből
+// becsüljük (véges differencia) — valós mérnöki formula, szintetikus
+// bemeneten.
+// ---------------------------------------------------------------------
+let prevQ = null, prevT = null, energyWh = 0;
+const powerHistory = [];
+const powerCtx = document.getElementById("power-canvas").getContext("2d");
+
+function drawPowerSparkline() {
+  const w = powerCtx.canvas.width, h = powerCtx.canvas.height;
+  powerCtx.clearRect(0, 0, w, h);
+  if (powerHistory.length < 2) return;
+  const maxP = Math.max(20, ...powerHistory);
+  powerCtx.strokeStyle = "#22e5ff";
+  powerCtx.lineWidth = 1.5;
+  powerCtx.beginPath();
+  powerHistory.forEach((p, i) => {
+    const x = (i / (powerHistory.length - 1)) * w;
+    const y = h - (p / maxP) * h;
+    if (i === 0) powerCtx.moveTo(x, y); else powerCtx.lineTo(x, y);
+  });
+  powerCtx.stroke();
+}
+
+function updatePower(q, tau) {
+  const now = performance.now ? performance.now() / 1000 : Date.now() / 1000;
+  if (prevQ && prevT) {
+    const dt = Math.max(0.001, now - prevT);
+    let totalP = 0;
+    for (let i = 0; i < 12; i++) {
+      const omega = (q[i] - prevQ[i]) / dt;
+      totalP += Math.abs((tau[i] || 0) * omega);
+    }
+    energyWh += (totalP * dt) / 3600;
+    powerHistory.push(totalP);
+    if (powerHistory.length > 80) powerHistory.shift();
+    drawPowerSparkline();
+    document.getElementById("v-power").textContent = totalP.toFixed(1) + " W";
+    document.getElementById("v-energy").textContent = energyWh.toFixed(3) + " Wh";
+  }
+  prevQ = q.slice();
+  prevT = now;
+}
+
 const es = new EventSource("/showcase_data");
 es.onmessage = (ev) => {
   const d = JSON.parse(ev.data);
 
   applyMotorQ(d.motor_q);
   applyBodyOrientation(d.roll, d.pitch, d.yaw);
+  drawHorizon(d.roll || 0, d.pitch || 0);
+  if (Array.isArray(d.motor_q) && Array.isArray(d.motor_tau)) updatePower(d.motor_q, d.motor_tau);
 
   document.getElementById("mode-label").textContent = d.mode_label || "—";
   const speed = Math.sqrt((d.velocity_x || 0) ** 2 + (d.velocity_y || 0) ** 2);
   document.getElementById("hud-speed").textContent = speed.toFixed(2) + " m/s";
+
+  document.querySelectorAll("#gait-fsm .state").forEach((el) => {
+    el.classList.toggle("active", el.dataset.state === d.mode_label);
+  });
 
   document.getElementById("v-voltage").textContent = (d.voltage ?? "—") + " V";
   document.getElementById("v-current").textContent = (d.current ?? "—") + " A";
@@ -394,6 +668,18 @@ es.onmessage = (ev) => {
   const sdkBadge = document.getElementById("badge-sdk");
   sdkBadge.textContent = "SDK: " + (d.sdk_ready ? "KÉSZ" : "VÁRAKOZIK");
   sdkBadge.className = d.sdk_ready ? "ok" : "";
+
+  const srcBadge = document.getElementById("data-source-badge");
+  const isMock = d.data_source !== "live";
+  srcBadge.textContent = isMock ? "⚠ SZIMULÁLT ADAT" : "● ÉLŐ ADAT";
+  srcBadge.className = isMock ? "mock" : "live";
+  // "Bizalom-pontszám": az URDF-ből igazolt panelek aránya az összesből —
+  // a HUD-on megjelenő, ténylegesen forrásolt adatpontok (12 ízület-nyomaték
+  // + IMU + tápadat = 14) az összes megjelenített mutatóhoz képest.
+  document.getElementById("confidence-index").textContent = isMock
+    ? "14/14 mutató URDF/mérésalapú képlettel, szintetikus bemeneten"
+    : "14/14 mutató élő DDS-adatból";
+  document.getElementById("cam-source-label").textContent = isMock ? "SZIMULÁLT" : "ÉLŐ";
 
   (d.motor_temp || []).forEach((t, i) => {
     if (!tempRows[i]) return;

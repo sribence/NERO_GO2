@@ -16,10 +16,31 @@ A hivatalos Unitree Go2 URDF (`unitreerobotics/unitree_ros/robots/go2_descriptio
 
 ## Ma este kész (💻)
 
-- [ ] `mock_robot/mock_bridge.py` — 12-motoros szintetikus ízület-adat (q, hőmérséklet, terhelés-becslés), ciklikus "áll → jár → megáll" minta
-- [ ] `web_dashboard/app.py` — `_init_mock_sdk()` bővítve 12-motoros adatra; `/showcase` route
-- [ ] `web_dashboard/templates/showcase.html` — three.js 3D vázmodell + élő adatpanelek (HUD-stílus)
-- [ ] Böngészős verifikáció + screenshot
+- [x] `web_dashboard/app.py` — `_init_mock_sdk()` 12-motoros adatra, teljes póz-repertoárral (`_SHOWCASE_SEQUENCE`); `/showcase` + `/showcase_data` route; `DATA_SOURCE` mock/live jelölő
+- [x] `web_dashboard/templates/showcase.html` — three.js 3D vázmodell + élő HUD-panelek
+- [x] Teljes demo-koreográfia: Állás / Séta / **Integetés** / Ülés / "Szív"-köszöntés (stilizált, nem motion-captured — a valós SportClient-mozdulatok pontos trajektóriája nem ismert, ez explicit jelölve a kódban)
+- [x] Élő kamera-panel (mock feed) + LiDAR-pontfelhő a 3D térben, forgó sweep-sugárral és távolság-alapú színezéssel
+- [x] Forrásolt "képesség-legenda" panel (kutató-agenttel összeállítva, URDF-ből igazolt vs. kereskedelmi forrás jelöléssel)
+- [x] **2026-09-03 éjszaka, 5-szerepű (marketing/tudományos/kutatói/oktatói/UX) workflow-brainstorm** két körben + szintézis — ebből épült be:
+  - Globális MOCK/LIVE adatforrás-jelölő + "bizalom-index" (kritikus tudományos hitelesség — semmilyen adat nincs forrásjelölés nélkül)
+  - Cold-open boot-szekvencia
+  - CoM + támasztó-poligon élő stabilitás-vizualizáció (statikus vs. dinamikus stabilitás)
+  - Élő teljesítményfelvétel-számítás (P=τ×ω, véges differenciával becsült ω-ból) + integrált Wh-számláló
+  - IMU mesterséges horizont widget (repülőgép-HUD-stílus)
+  - Gait-állapotgép diagram élő kiemeléssel
+  - Ember-vs-robot érzékelés kontraszt-sáv
+- [x] Böngészős verifikáció + screenshotok
+
+### Ma este NEM készült el (a workflow-szintézis listájáról, jövőbeli kör anyaga)
+
+- Vezetett "képesség-lépcső" 4-fázisú lecke-állapotgép (oktatói mód)
+- Prezentátori cheat-sheet overlay (P billentyű)
+- Hibaszimulációs demo-gomb (fault injection)
+- Session debrief záró képernyő
+- Kattintható izület-fókusz/inspect mód kamera-tweenekkel
+- Panel-elrendezés memória (localStorage)
+
+Ezek nem kerültek elvetésre — a workflow végső szintézise (`docs/14-capability-showcase-projekt.md` melletti workflow-futás naplója) tartalmazza a teljes, priorizált listát, ha a projekt folytatódik.
 
 ## Későbbi fázisok (🤖 — robotnál folytatandó, csak tervezve)
 
