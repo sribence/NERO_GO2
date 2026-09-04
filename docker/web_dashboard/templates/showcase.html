@@ -250,7 +250,7 @@
     </div>
 
     <div id="lidar-debug-panel">
-      <div class="dbg-row"><label>Pontméret</label><input type="range" id="dbg-point-size" min="0.005" max="0.08" step="0.001" value="0.012"><span id="dbg-point-size-val">0.012</span></div>
+      <div class="dbg-row"><label>Pontméret</label><input type="range" id="dbg-point-size" min="0.005" max="0.08" step="0.001" value="0.035"><span id="dbg-point-size-val">0.035</span></div>
       <div class="dbg-row"><label>Nézettávolság</label><input type="range" id="dbg-cam-radius" min="0.5" max="6" step="0.05" value="1.15"><span id="dbg-cam-radius-val">1.15</span></div>
       <div class="dbg-row"><label><input type="checkbox" id="dbg-freeze-cam"> Kamera fagyasztva</label></div>
     </div>
@@ -352,6 +352,17 @@ viewport.appendChild(renderer.domElement);
 const CAM_TARGET = new THREE.Vector3(0, 0.16, 0);
 let camAngle = 0.7;
 let camRadius = 1.15;
+
+// Kamera-koreográfia: közeli (robot-ízület fókusz) és távoli (szenzor-/
+// szoba-nézet, ahol a LiDAR-pontfelhők ténylegesen láthatók) beállás
+// váltakozik — 2026-09-04 élő teszten kiderült, hogy 1.15-ös közeli
+// radiuszon a pontfelhő (ami méteres távolságban van) gyakorlatilag
+// láthatatlan volt, csak kizoomolva vált látvánnyá.
+const CAM_SHOT_CLOSE = 1.15;
+const CAM_SHOT_WIDE = 3.4;
+const CAM_SHOT_PERIOD_S = 16; // ennyi ideig tart egy-egy "shot"
+let camRadiusTarget = CAM_SHOT_CLOSE;
+let shotStart = 0;
 
 scene.add(new THREE.AmbientLight(0x557788, 1.2));
 const key = new THREE.DirectionalLight(0x22e5ff, 1.4);
@@ -523,7 +534,7 @@ function updateStability() {
 // ugyanaz a leképzés, mint a robotmodellnél.
 // ---------------------------------------------------------------------
 const lidarGeometry = new THREE.BufferGeometry();
-const lidarMaterial = new THREE.PointsMaterial({ size: 0.012, transparent: true, opacity: 0.8, vertexColors: true, sizeAttenuation: true, depthTest: false });
+const lidarMaterial = new THREE.PointsMaterial({ size: 0.035, transparent: true, opacity: 0.8, vertexColors: true, sizeAttenuation: true, depthTest: false });
 const lidarPoints = new THREE.Points(lidarGeometry, lidarMaterial);
 lidarPoints.renderOrder = 999; // depthTest:false miatt mindig a tetején rajzolódjon, ne takarja el a robot-test
 scene.add(lidarPoints);
@@ -535,7 +546,7 @@ scene.add(lidarPoints);
 // eltolással jelenítjük meg — narancssárga színnel megkülönböztetve a
 // beépített (cián/kék) LiDAR-tól, hogy ez a közelítő jelleg látható legyen.
 const hesaiGeometry = new THREE.BufferGeometry();
-const hesaiMaterial = new THREE.PointsMaterial({ color: 0xffb84d, size: 0.014, transparent: true, opacity: 0.75, depthTest: false });
+const hesaiMaterial = new THREE.PointsMaterial({ color: 0xffb84d, size: 0.04, transparent: true, opacity: 0.75, depthTest: false });
 const hesaiPoints = new THREE.Points(hesaiGeometry, hesaiMaterial);
 hesaiPoints.renderOrder = 998;
 hesaiPoints.position.set(0, 0.05, 0); // közelítő becslés, nincs kalibrálva
@@ -640,7 +651,17 @@ window.addEventListener("resize", onResize);
 let sweepAngle = 0;
 function animate() {
   requestAnimationFrame(animate);
-  if (!window.FREEZE_CAM) camAngle += 0.0025;
+  const nowS = performance.now() / 1000;
+  if (!window.FREEZE_CAM) {
+    camAngle += 0.0025;
+    // Váltakozó közeli/távoli "shot" — lásd a CAM_SHOT_* konstansok
+    // megjegyzését: a szenzor-pontfelhők csak a távoli nézetben látszanak.
+    if (nowS - shotStart > CAM_SHOT_PERIOD_S) {
+      shotStart = nowS;
+      camRadiusTarget = camRadiusTarget === CAM_SHOT_CLOSE ? CAM_SHOT_WIDE : CAM_SHOT_CLOSE;
+    }
+    camRadius += (camRadiusTarget - camRadius) * 0.02; // lágy lerp, nem ugrásszerű váltás
+  }
   camera.position.set(Math.cos(camAngle) * camRadius, 0.55 * camRadius, Math.sin(camAngle) * camRadius);
   camera.lookAt(CAM_TARGET);
   sweepAngle += 0.02;
