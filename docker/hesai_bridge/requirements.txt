@@ -1,0 +1,2 @@
+# Nincs külső függőség - csak Python standard könyvtár (http.server, socket,
+# json, math) - szándékosan, hogy internet nélkül is buildelhető legyen.

@@ -1,0 +1,19 @@
+version: "3.8"
+
+# hesai_bridge — a 2026-09-04-én felszerelt külső Hesai PandarXT-16
+# navigációs LiDAR UDP-adatfolyamának dekódolása. Ld. ../../docs/00-BIZTONSAGI-SZABALYOK.md
+#
+# network_mode: host kell, mert a Pandar Console MÁR be van állítva, hogy
+# a 192.168.123.18:2368-ra küldje az UDP-csomagokat (a Jetson valódi IP-je)
+# — bridge hálózaton ez nem érne célba.
+
+services:
+  hesai_bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nero_go2/hesai_bridge:latest
+    container_name: nero_go2_hesai_bridge
+    network_mode: host
+    restart: "no"
+    # HTTP API port: 5003, UDP vétel: 2368 (host hálózaton)
