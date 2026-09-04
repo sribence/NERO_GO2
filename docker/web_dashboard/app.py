@@ -72,6 +72,10 @@ dog_data = {
     "velocity_y": None,
     "velocity_z": None,
     "yaw_speed": None,
+    "position_x": None,
+    "position_y": None,
+    "position_z": None,
+    "sport_yaw": None,
     "motor_q": [0.0] * 12,
     "motor_tau": [0.0] * 12,
     "motor_temp": [0] * 12,
@@ -86,6 +90,171 @@ _move_state = {"x": 0.0, "y": 0.0, "yaw": 0.0}
 
 sdk_ready = False
 sport_client = None
+
+# --- SLAM/térkép bridge (rosbridge websocketen, roslibpy-vel) ---------------
+# A robot natív graph_pid_ws/QT_Server stackje (ld. docs/05-egyedi-slam-stack.md)
+# occupancy grid térképet (nav_msgs/OccupancyGrid, "/map") és a robot pózát
+# (/tf) publikálja ROS2-n. Ezt a docker/rosbridge (rosbridge_suite, :9090)
+# teszi ki JSON-WebSocketen — mi csak OLVASUNK innen, sosem publikálunk,
+# tehát ez a réteg soha nem tud mozgásparancsot küldeni a robotnak.
+# A pontos topic/frame-nevek a 2026-09-04-i élő vizsgálat előtt csak
+# feltételezettek — env-változóval felülírhatók, ha másnak bizonyulnak.
+ROSBRIDGE_HOST = os.environ.get("ROSBRIDGE_HOST")  # ha üres, a SLAM-bridge nem indul el
+ROSBRIDGE_PORT = int(os.environ.get("ROSBRIDGE_PORT", "9090"))
+SLAM_BASE_FRAME = os.environ.get("SLAM_BASE_FRAME", "base_link")
+
+_slam_lock = threading.Lock()
+_slam_state = {
+    "connected": False,
+    "map": None,  # {width, height, resolution, origin_x, origin_y, data: [...]}
+    "map_version": 0,
+    "pose": None,  # {x, y, yaw}
+}
+
+
+def _quat_to_yaw(x, y, z, w):
+    return math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+
+
+def _slam_bridge_thread():
+    import roslibpy
+
+    while True:
+        try:
+            client = roslibpy.Ros(host=ROSBRIDGE_HOST, port=ROSBRIDGE_PORT)
+            client.run(timeout=5)
+            with _slam_lock:
+                _slam_state["connected"] = client.is_connected
+            logger.info("SLAM bridge: connected to rosbridge at %s:%s", ROSBRIDGE_HOST, ROSBRIDGE_PORT)
+
+            def on_map(msg):
+                info = msg["info"]
+                with _slam_lock:
+                    _slam_state["map"] = {
+                        "width": info["width"],
+                        "height": info["height"],
+                        "resolution": info["resolution"],
+                        "origin_x": info["origin"]["position"]["x"],
+                        "origin_y": info["origin"]["position"]["y"],
+                        "data": msg["data"],
+                    }
+                    _slam_state["map_version"] += 1
+
+            def on_tf(msg):
+                for t in msg.get("transforms", []):
+                    if t.get("child_frame_id") != SLAM_BASE_FRAME:
+                        continue
+                    trans = t["transform"]["translation"]
+                    rot = t["transform"]["rotation"]
+                    with _slam_lock:
+                        _slam_state["pose"] = {
+                            "x": trans["x"],
+                            "y": trans["y"],
+                            "yaw": _quat_to_yaw(rot["x"], rot["y"], rot["z"], rot["w"]),
+                        }
+
+            map_topic = roslibpy.Topic(client, "/map", "nav_msgs/OccupancyGrid")
+            map_topic.subscribe(on_map)
+            tf_topic = roslibpy.Topic(client, "/tf", "tf2_msgs/TFMessage")
+            tf_topic.subscribe(on_tf)
+
+            while client.is_connected:
+                time.sleep(1)
+        except Exception:
+            logger.exception("SLAM bridge: rosbridge connection failed, retrying in 5s")
+        with _slam_lock:
+            _slam_state["connected"] = False
+        time.sleep(5)
+
+
+if ROSBRIDGE_HOST:
+    threading.Thread(target=_slam_bridge_thread, daemon=True).start()
+else:
+    logger.info("ROSBRIDGE_HOST not set — SLAM/map bridge disabled")
+
+
+# --- Intel RealSense D435i bridge (külön ROS1 Noetic rosbridge, ld.
+# ../realsense_bridge/) — ugyanaz a minta, mint a fenti SLAM-bridge, csak
+# másik rosbridge-porton (a ROS1/ROS2 rosbridge egymástól függetlenül,
+# akár egyszerre is futhat). Csak OLVASUNK innen is — szín-kép + mélység-
+# pontfelhő, sosem publikálunk vissza, tehát ez sem tud a robotnak
+# parancsot küldeni.
+REALSENSE_ROSBRIDGE_HOST = os.environ.get("REALSENSE_ROSBRIDGE_HOST")
+REALSENSE_ROSBRIDGE_PORT = int(os.environ.get("REALSENSE_ROSBRIDGE_PORT", "9091"))
+
+_realsense_lock = threading.Lock()
+_realsense_state = {
+    "connected": False,
+    "color_jpg_b64": None,  # a legutóbbi szín-képkocka, JPEG, base64-ben (közvetlenül <img src="data:...">-be tehető)
+    "points": None,  # letisztított/ritkított [x,y,z] lista a mélység-pontfelhőből
+}
+
+
+def _decode_pointcloud2(msg):
+    """sensor_msgs/PointCloud2 base64-dekódolása [x,y,z] listává — a
+    rosbridge JSON-üzenetben a bináris 'data' mező base64 stringként jön.
+    Ritkítunk (max ~4000 pont), hogy a JSON-válasz és a three.js renderelés
+    ne nőjön parttalanul nagyra egy sűrű RealSense-felhőn."""
+    import base64
+    import struct
+
+    raw = base64.b64decode(msg["data"])
+    point_step = msg["point_step"]
+    offsets = {f["name"]: f["offset"] for f in msg["fields"]}
+    if "x" not in offsets or "y" not in offsets or "z" not in offsets:
+        return []
+    n_points = len(raw) // point_step
+    step = max(1, n_points // 4000)
+    points = []
+    for i in range(0, n_points, step):
+        base = i * point_step
+        x = struct.unpack_from("<f", raw, base + offsets["x"])[0]
+        y = struct.unpack_from("<f", raw, base + offsets["y"])[0]
+        z = struct.unpack_from("<f", raw, base + offsets["z"])[0]
+        if x != x or y != y or z != z:  # NaN-szűrés (érvénytelen mélységpont)
+            continue
+        points.append([round(x, 3), round(y, 3), round(z, 3)])
+    return points
+
+
+def _realsense_bridge_thread():
+    import roslibpy
+
+    while True:
+        try:
+            client = roslibpy.Ros(host=REALSENSE_ROSBRIDGE_HOST, port=REALSENSE_ROSBRIDGE_PORT)
+            client.run(timeout=5)
+            with _realsense_lock:
+                _realsense_state["connected"] = client.is_connected
+            logger.info("RealSense bridge: connected to rosbridge at %s:%s", REALSENSE_ROSBRIDGE_HOST, REALSENSE_ROSBRIDGE_PORT)
+
+            def on_color(msg):
+                with _realsense_lock:
+                    _realsense_state["color_jpg_b64"] = msg["data"]  # már base64 string a rosbridge JSON-ban
+
+            def on_points(msg):
+                pts = _decode_pointcloud2(msg)
+                with _realsense_lock:
+                    _realsense_state["points"] = pts
+
+            color_topic = roslibpy.Topic(client, "/camera/color/image_raw/compressed", "sensor_msgs/CompressedImage")
+            color_topic.subscribe(on_color)
+            points_topic = roslibpy.Topic(client, "/camera/depth/color/points", "sensor_msgs/PointCloud2")
+            points_topic.subscribe(on_points)
+
+            while client.is_connected:
+                time.sleep(1)
+        except Exception:
+            logger.exception("RealSense bridge: rosbridge connection failed, retrying in 5s")
+        with _realsense_lock:
+            _realsense_state["connected"] = False
+        time.sleep(5)
+
+
+if REALSENSE_ROSBRIDGE_HOST:
+    threading.Thread(target=_realsense_bridge_thread, daemon=True).start()
+else:
+    logger.info("REALSENSE_ROSBRIDGE_HOST not set — RealSense bridge disabled")
 
 
 def _touch_activity():
@@ -320,6 +489,21 @@ def _init_sdk():
                 dog_data["velocity_y"] = round(msg.velocity[1], 2)
                 dog_data["velocity_z"] = round(msg.velocity[2], 2)
                 dog_data["yaw_speed"] = round(msg.yaw_speed, 2)
+                # SportModeState_.position — a robot saját (VO/odometria-alapú)
+                # abszolút pozíció-becslése, ld. unitree_sdk2py SportModeState_.
+                # Ezt használjuk a saját (ROS-mentes) térkép-építő adat-dömperhez,
+                # nem kell saját dead-reckoning integrálás.
+                dog_data["position_x"] = round(msg.position[0], 3)
+                dog_data["position_y"] = round(msg.position[1], 3)
+                dog_data["position_z"] = round(msg.position[2], 3)
+                # FONTOS a saját térkép-építőhöz: ezt a yaw-t (SportModeState_
+                # SAJÁT imu_state-jéből, NEM a LowState_ külön DDS-üzenetéből)
+                # használja a /pose_snapshot — a position és a yaw ugyanabból
+                # az üzenetből jön, így nincs aszinkron csúszás a kettő közt
+                # (a LowState_/SportModeState_ külön callback, külön ütemben
+                # érkezik — forduláskor ez pár tized másodperces yaw/pozíció
+                # csúszást okozott, ami a térképen szétkenődésként jelent meg).
+                dog_data["sport_yaw"] = round(msg.imu_state.rpy[2], 3)
 
         # domainId=0 (matches the robot's own rt/... topics), network
         # interface name is the Jetson's real NIC (ld. docs/01-halozat.md).
@@ -359,6 +543,27 @@ def _actions():
     }
 
 
+@app.route("/pose_snapshot")
+def pose_snapshot():
+    """Egyszerű, nem-streamelő JSON-pillanatkép a robot pozíciójáról/orientációjáról
+    — a saját (ROS-mentes) térkép-adat-dömper script ezt kérdezi le HTTP GET-tel,
+    nem kell SSE-t parse-olnia."""
+    with _lock:
+        return jsonify({
+            "position_x": dog_data["position_x"],
+            "position_y": dog_data["position_y"],
+            "position_z": dog_data["position_z"],
+            # sport_yaw = SportModeState_ SAJÁT imu_state-je, ugyanabból az
+            # üzenetből, mint a position — ezt kell használni térképezésnél,
+            # NEM a "yaw" mezőt (az a külön LowState_ DDS-üzenetből jön,
+            # aszinkron a position-nel, ld. sport_state_handler kommentje).
+            "yaw": dog_data["sport_yaw"],
+            "roll": dog_data["roll"],
+            "pitch": dog_data["pitch"],
+            "sdk_ready": sdk_ready,
+        })
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -393,10 +598,43 @@ def showcase_data():
                     "mode_label": dog_data["mode_label"],
                     "motor_names": MOTOR_NAMES,
                 }
+                payload["armed"] = _armed
                 payload["sdk_ready"] = sdk_ready
                 payload["data_source"] = DATA_SOURCE
             yield f"data: {json.dumps(payload)}\n\n"
             time.sleep(0.1)
+
+    return Response(generate(), mimetype="text/event-stream")
+
+
+@app.route("/slam_data")
+def slam_data():
+    """SSE stream a valós SLAM-térképhez + robot-pózhoz (rosbridge-en
+    keresztül, ld. _slam_bridge_thread) — 1 Hz, mert a térkép ritkán
+    változik és a JSON-grid egyébként is nagy (width*height bájt)."""
+
+    def generate():
+        while True:
+            with _slam_lock:
+                payload = dict(_slam_state)
+            yield f"data: {json.dumps(payload)}\n\n"
+            time.sleep(1)
+
+    return Response(generate(), mimetype="text/event-stream")
+
+
+@app.route("/realsense_data")
+def realsense_data():
+    """SSE stream az Intel RealSense D435i szín-képéhez + mélység-pontfelhőhöz
+    (ld. _realsense_bridge_thread) — 2 Hz, mert a pontfelhő is jelentős
+    méretű JSON-t jelent."""
+
+    def generate():
+        while True:
+            with _realsense_lock:
+                payload = dict(_realsense_state)
+            yield f"data: {json.dumps(payload)}\n\n"
+            time.sleep(0.5)
 
     return Response(generate(), mimetype="text/event-stream")
 

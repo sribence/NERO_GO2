@@ -218,6 +218,36 @@
   /* Presenter mód — a diagnosztikai csúszkák alapból rejtve, 'd' billentyűvel
      vagy ?debug=1 URL-paraméterrel előhívhatók (ld. korábbi élő debug-igény). */
   #lidar-debug-panel { display: none; }
+
+  /* Kézi vezérlőpult — az index.html (fő vezérlőpult, :5002) már bevált
+     arm/disarm + joystick + akció-gomb mintája, ide a showcase HUD-stílusára
+     hangolva (2026-09-04: a user ezt kérte a showcase oldalra is). */
+  #control-panel .arm-btn {
+    width: 100%; padding: 10px; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+    border-radius: 4px; border: 1px solid var(--border); cursor: pointer; margin-bottom: 12px;
+    background: rgba(255,255,255,0.03); color: var(--text); font-family: inherit;
+  }
+  #control-panel .arm-btn.armed { background: var(--danger); border-color: var(--danger); color: #05070a; }
+  #control-panel .sticks { display: flex; justify-content: space-around; margin: 10px 0; }
+  #control-panel .stick-base {
+    width: 90px; height: 90px; border-radius: 50%;
+    background: #0b0d11; border: 1px solid var(--border);
+    position: relative; touch-action: none;
+  }
+  #control-panel .stick-knob {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--accent); position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    pointer-events: none; box-shadow: 0 0 10px rgba(34,229,255,0.6);
+  }
+  #control-panel .stick-base.disabled .stick-knob { background: var(--border); box-shadow: none; }
+  #control-panel .ctl-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+  #control-panel .ctl-actions button {
+    padding: 8px; font-size: 11px; border-radius: 4px; border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03); color: var(--text); cursor: pointer; font-family: inherit;
+  }
+  #control-panel .ctl-actions button:disabled { opacity: 0.3; cursor: not-allowed; }
+  #control-panel .ctl-actions button:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
 </style>
 </head>
 <body>
@@ -308,6 +338,36 @@
       <div id="motor-tau-bars"></div>
     </div>
 
+    <div class="panel" id="realsense-panel">
+      <h3>Intel RealSense D435i (élő)</h3>
+      <img id="realsense-color-img" alt="RealSense szín-kép" style="width:100%; border-radius:4px; background:#05070a; aspect-ratio:4/3; object-fit:cover; display:block;">
+      <div class="kv" style="margin-top:6px;"><span>Állapot</span><b id="v-realsense-status">&mdash;</b></div>
+      <div class="kv"><span>Mélység-pontfelhő</span><b id="v-realsense-points">&mdash;</b></div>
+    </div>
+
+    <div class="panel" id="slam-map-panel">
+      <h3>SLAM térkép &amp; pozíció (élő)</h3>
+      <canvas id="slam-map-canvas" width="300" height="220" style="width:100%; border-radius:4px; background:#05070a;"></canvas>
+      <div class="kv" style="margin-top:6px;"><span>Állapot</span><b id="v-slam-status">&mdash;</b></div>
+    </div>
+
+    <div class="panel" id="control-panel">
+      <h3>Kézi vezérlés</h3>
+      <button class="arm-btn" id="ctl-arm-btn">🔒 Zárolva — kattints a feloldáshoz</button>
+      <div class="sticks">
+        <div class="stick-base disabled" id="ctl-stick1"><div class="stick-knob"></div></div>
+        <div class="stick-base disabled" id="ctl-stick2"><div class="stick-knob"></div></div>
+      </div>
+      <div class="ctl-actions">
+        <button data-action="stand_up" disabled>Állj fel</button>
+        <button data-action="lay_down" disabled>Feküdj le</button>
+        <button data-action="sit" disabled>Ülj</button>
+        <button data-action="wave" disabled>Integess</button>
+        <button data-action="heart" disabled>Szív</button>
+      </div>
+      <div style="font-size:9px; color:var(--muted); margin-top:8px;">Billentyűzet: WASD mozgás · Q/E forgás (csak feloldva)</div>
+    </div>
+
     <div class="panel" id="legend-panel">
       <h3>Képességek &amp; műszaki adatok</h3>
       <div class="legend-item"><b>🟢 12 szabadságfok (DOF)</b><span>3 forgó ízület / láb — a hivatalos Unitree URDF-ből, ma lekérve</span></div>
@@ -323,6 +383,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/ColladaLoader.js"></script>
 <script>
 // ---------------------------------------------------------------------
 // Geometria: a hivatalos Unitree Go2 URDF valós méretei/tengelyei
@@ -509,6 +570,86 @@ for (const leg of LEGS) {
 
   legPivots.push({ hip: hipPivot, thigh: thighPivot, calf: calfPivot, foot: footMesh, thighMat: legThighMat, calfMat: legCalfMat });
 }
+
+// ---------------------------------------------------------------------
+// Valódi Go2 mesh (hivatalos unitreerobotics/unitree_ros go2_description
+// DAE-fájlok, 2026-09-04-én letöltve, ld. static/go2_description/) —
+// 2026-09-04: a user explicit kérése a procedurális doboz/henger-váz helyett.
+// Az illesztési pontok (hip/thigh/calf/foot pivot pozíciók, hip-forgatások
+// oldalanként) a letöltött go2_description.urdf <visual><origin>
+// értékeiből lettek kiolvasva. A geometria betöltése aszinkron; amíg nem
+// kész, a fenti procedurális váz látszik (garantált fallback).
+// Koordináta-megjegyzés: a mi jelenetünk a robot (x,y,z) -> three (x,z,y)
+// leképzést használ (ld. fenti komment), ami egy TÜKRÖZÉS (nem tiszta
+// forgatás) — a ColladaLoader viszont Z_UP->Y_UP forgatással konvertál.
+// Ezért minden betöltött darabon egy extra Z-tükrözést alkalmazunk, hogy
+// a kettő konzisztens legyen; a helyes irányt böngészőben ellenőriztük.
+// ---------------------------------------------------------------------
+const REAL_MESH_BASE = "/static/go2_description/meshes/";
+const daeLoader = new THREE.ColladaLoader();
+function loadDae(name) {
+  return new Promise((resolve, reject) => {
+    daeLoader.load(REAL_MESH_BASE + name, (collada) => resolve(collada.scene), undefined, reject);
+  });
+}
+function preparePart(scene, material) {
+  const wrap = new THREE.Group();
+  scene.traverse((child) => {
+    if (child.isMesh) {
+      child.material = material;
+      child.material.side = THREE.DoubleSide; // a tükrözés megfordíthatja a winding-ot
+    }
+  });
+  wrap.add(scene);
+  return wrap;
+}
+// FL rpy=(0,0,0), FR rpy=(π,0,0), RL rpy=(0,π,0), RR rpy=(π,π,0) — a
+// go2_description.urdf FL/FR/RL/RR_hip <visual><origin rpy=...> értékei.
+const HIP_EULER = {
+  FR: [Math.PI, 0, 0],
+  FL: [0, 0, 0],
+  RR: [Math.PI, Math.PI, 0],
+  RL: [0, Math.PI, 0],
+};
+
+Promise.all([
+  loadDae("base.dae"), loadDae("hip.dae"),
+  loadDae("thigh.dae"), loadDae("thigh_mirror.dae"),
+  loadDae("calf.dae"), loadDae("calf_mirror.dae"),
+  loadDae("foot.dae"),
+]).then(([baseTpl, hipTpl, thighTpl, thighMirrorTpl, calfTpl, calfMirrorTpl, footTpl]) => {
+  bodyMesh.visible = false;
+  const realBody = preparePart(baseTpl, bodyMat);
+  robotGroup.add(realBody);
+
+  LEGS.forEach((leg, i) => {
+    const lp = legPivots[i];
+    const isRight = leg.name[1] === "R"; // FR/RR jobb oldal -> mirror-mesh
+
+    lp.hip.children.find((c) => c.isMesh).visible = false;
+    const realHip = preparePart(hipTpl.clone(true), jointMat.clone());
+    const e = HIP_EULER[leg.name];
+    realHip.rotation.set(e[0], e[1], e[2]);
+    lp.hip.add(realHip);
+
+    lp._thighProcMesh = lp.thigh.children.find((c) => c.isMesh);
+    if (lp._thighProcMesh) lp._thighProcMesh.visible = false;
+    const realThigh = preparePart((isRight ? thighMirrorTpl : thighTpl).clone(true), lp.thighMat);
+    lp.thigh.add(realThigh);
+
+    lp._calfProcMesh = lp.calf.children.find((c) => c.isMesh);
+    if (lp._calfProcMesh) lp._calfProcMesh.visible = false;
+    const realCalf = preparePart((isRight ? calfMirrorTpl : calfTpl).clone(true), lp.calfMat);
+    lp.calf.add(realCalf);
+
+    lp.foot.visible = false;
+    const realFoot = preparePart(footTpl.clone(true), jointMat.clone());
+    realFoot.position.copy(lp.foot.position);
+    lp.foot.parent.add(realFoot);
+  });
+}).catch((err) => {
+  console.warn("Go2 valódi mesh betöltése sikertelen, procedurális váz marad:", err);
+});
 
 function applyMotorQ(q) {
   if (!q || q.length < 12) return;
@@ -927,6 +1068,258 @@ function updatePower(q, tau) {
   prevT = now;
 }
 
+// ---------------------------------------------------------------------
+// Kézi vezérlőpult — az index.html (fő vezérlőpult) bevált joystick +
+// arm/disarm + akció-gomb logikájának egy az egyben átemelése, ugyanazokra
+// a meglévő végpontokra kötve (/arm, /disarm, /update_joystick, /run_action).
+// ---------------------------------------------------------------------
+(function setupControlPanel() {
+  let ctlArmed = false;
+
+  function setArmedUI(isArmed) {
+    ctlArmed = isArmed;
+    const btn = document.getElementById("ctl-arm-btn");
+    btn.textContent = isArmed ? "🔓 Feloldva — kattints a zároláshoz" : "🔒 Zárolva — kattints a feloldáshoz";
+    btn.classList.toggle("armed", isArmed);
+    document.querySelectorAll("#control-panel .ctl-actions button").forEach((b) => (b.disabled = !isArmed));
+    document.querySelectorAll("#control-panel .stick-base").forEach((el) => el.classList.toggle("disabled", !isArmed));
+  }
+
+  document.getElementById("ctl-arm-btn").addEventListener("click", () => {
+    fetch(ctlArmed ? "/disarm" : "/arm", { method: "POST" })
+      .then((r) => r.json())
+      .then((d) => { if (!d.error) setArmedUI(!ctlArmed); else alert(d.error); })
+      .catch(() => {});
+  });
+
+  document.querySelectorAll("#control-panel .ctl-actions button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      fetch("/run_action/" + btn.dataset.action, { method: "POST" }).catch(() => {});
+    });
+  });
+
+  function setupStick(elId, stickId) {
+    const base = document.getElementById(elId);
+    const knob = base.querySelector(".stick-knob");
+    const radius = base.clientWidth / 2;
+    let dragging = false;
+
+    function send(x, y) {
+      if (!ctlArmed) return;
+      fetch("/update_joystick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stickId, x, y }),
+      }).catch(() => {});
+    }
+
+    function move(clientX, clientY) {
+      const rect = base.getBoundingClientRect();
+      let dx = clientX - (rect.left + radius);
+      let dy = clientY - (rect.top + radius);
+      const dist = Math.min(Math.hypot(dx, dy), radius - 17);
+      const angle = Math.atan2(dy, dx);
+      dx = Math.cos(angle) * dist;
+      dy = Math.sin(angle) * dist;
+      knob.style.transform = `translate(${dx - 17}px, ${dy - 17}px)`;
+      send(dx / (radius - 17), dy / (radius - 17));
+    }
+
+    function reset() {
+      knob.style.transform = "translate(-50%, -50%)";
+      send(0, 0);
+    }
+
+    base.addEventListener("pointerdown", (e) => {
+      if (!ctlArmed) return;
+      dragging = true;
+      base.setPointerCapture(e.pointerId);
+      move(e.clientX, e.clientY);
+    });
+    base.addEventListener("pointermove", (e) => { if (dragging) move(e.clientX, e.clientY); });
+    base.addEventListener("pointerup", () => { dragging = false; reset(); });
+    base.addEventListener("pointercancel", () => { dragging = false; reset(); });
+  }
+
+  setupStick("ctl-stick1", "stick1");
+  setupStick("ctl-stick2", "stick2");
+
+  // -------------------------------------------------------------------
+  // Billentyűzet-vezérlés — WASD mozgás (stick1) + Q/E forgás (stick2),
+  // 2026-09-04: a user explicit kérése a joystick mellé. Ugyanarra a
+  // /update_joystick végpontra küld, mint az érintős stick — a szerver
+  // nem tud különbséget tenni a bemeneti eszköz között.
+  // -------------------------------------------------------------------
+  const KEY_MAP = { w: "w", a: "a", s: "s", d: "d", q: "q", e: "e" };
+  const heldKeys = new Set();
+  const knob1 = document.querySelector("#ctl-stick1 .stick-knob");
+  const knob2 = document.querySelector("#ctl-stick2 .stick-knob");
+  const stickRadius1 = document.getElementById("ctl-stick1").clientWidth / 2 - 17;
+  const stickRadius2 = document.getElementById("ctl-stick2").clientWidth / 2 - 17;
+  let kbInterval = null;
+
+  function sendStick(stickId, x, y) {
+    if (!ctlArmed) return;
+    fetch("/update_joystick", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stickId, x, y }),
+    }).catch(() => {});
+  }
+
+  function applyKeyboardState() {
+    let sx = (heldKeys.has("d") ? 1 : 0) - (heldKeys.has("a") ? 1 : 0);
+    let sy = (heldKeys.has("s") ? 1 : 0) - (heldKeys.has("w") ? 1 : 0);
+    if (sx && sy) { sx *= 0.7071; sy *= 0.7071; } // átlós irány normalizálás
+    const yawSx = (heldKeys.has("e") ? 1 : 0) - (heldKeys.has("q") ? 1 : 0);
+
+    knob1.style.transform = `translate(${sx * stickRadius1 - 17}px, ${sy * stickRadius1 - 17}px)`;
+    knob2.style.transform = `translate(${yawSx * stickRadius2 - 17}px, -17px)`;
+
+    sendStick("stick1", sx, sy);
+    sendStick("stick2", yawSx, 0);
+  }
+
+  window.addEventListener("keydown", (e) => {
+    const k = KEY_MAP[e.key.toLowerCase()];
+    if (!k || !ctlArmed || heldKeys.has(k)) return;
+    heldKeys.add(k);
+    applyKeyboardState();
+    if (!kbInterval) kbInterval = setInterval(applyKeyboardState, 150); // a fizikai joystickkal egyező folyamatos "élő" jelzés
+  });
+  window.addEventListener("keyup", (e) => {
+    const k = KEY_MAP[e.key.toLowerCase()];
+    if (!k) return;
+    heldKeys.delete(k);
+    applyKeyboardState();
+    if (heldKeys.size === 0 && kbInterval) { clearInterval(kbInterval); kbInterval = null; }
+  });
+  // Ha lezárjuk a vezérlést, a lenyomva tartott billentyűk ne ragadjanak be.
+  window.addEventListener("blur", () => { heldKeys.clear(); if (kbInterval) { clearInterval(kbInterval); kbInterval = null; } });
+
+  window._showcaseControlSetArmedUI = setArmedUI;
+})();
+
+// ---------------------------------------------------------------------
+// SLAM térkép + élő pozíció — /slam_data (rosbridge -> app.py, ld. ott).
+// occupancy grid: -1 ismeretlen, 0 szabad, 100 akadály (nav_msgs/OccupancyGrid
+// konvenció). Csak akkor rajzoljuk újra a rácsot, ha a map_version változott
+// (a térkép ritkán módosul, a pozíció viszont minden keretben).
+// ---------------------------------------------------------------------
+const slamCanvas = document.getElementById("slam-map-canvas");
+const slamCtx = slamCanvas.getContext("2d");
+let slamMapVersion = -1;
+let slamGridImageData = null;
+
+function drawSlamGrid(map) {
+  const { width, height, data } = map;
+  const off = document.createElement("canvas");
+  off.width = width; off.height = height;
+  const octx = off.getContext("2d");
+  const img = octx.createImageData(width, height);
+  for (let i = 0; i < data.length; i++) {
+    const v = data[i];
+    let r, g, b;
+    if (v < 0) { r = 15; g = 22; b = 31; }              // ismeretlen — sötét
+    else if (v < 50) { r = 15; g = 30; b = 40; }         // szabad — kékes sötét
+    else { r = 123; g = 255; b = 176; }                  // akadály — akcens zöld
+    // az occupancy grid sor-elrendezése alulról felfelé fut (ROS konvenció),
+    // a canvas Y lefelé nő — a rajzoláshoz meg kell fordítani a sorokat.
+    const row = height - 1 - Math.floor(i / width);
+    const col = i % width;
+    const p = (row * width + col) * 4;
+    img.data[p] = r; img.data[p + 1] = g; img.data[p + 2] = b; img.data[p + 3] = 255;
+  }
+  octx.putImageData(img, 0, 0);
+  slamGridImageData = off;
+}
+
+function drawSlamPanel(map, pose) {
+  const w = slamCanvas.width, h = slamCanvas.height;
+  slamCtx.clearRect(0, 0, w, h);
+  if (!map || !slamGridImageData) {
+    slamCtx.fillStyle = "#5f7386";
+    slamCtx.font = "11px Consolas, monospace";
+    slamCtx.fillText("nincs élő térkép-adat", 10, h / 2);
+    return;
+  }
+  // occupancy grid -> canvas: nearest-neighbor felskálázás, arányt megtartva.
+  const scale = Math.min(w / map.width, h / map.height);
+  const dw = map.width * scale, dh = map.height * scale;
+  const ox = (w - dw) / 2, oy = (h - dh) / 2;
+  slamCtx.imageSmoothingEnabled = false;
+  slamCtx.drawImage(slamGridImageData, ox, oy, dw, dh);
+
+  if (pose) {
+    // világ (méter) -> rács-index -> canvas-pixel, a fenti transzformmal.
+    const gx = (pose.x - map.origin_x) / map.resolution;
+    const gy = map.height - 1 - (pose.y - map.origin_y) / map.resolution;
+    const px = ox + gx * scale, py = oy + gy * scale;
+    slamCtx.save();
+    slamCtx.translate(px, py);
+    slamCtx.rotate(-pose.yaw);
+    slamCtx.fillStyle = "#22e5ff";
+    slamCtx.beginPath();
+    slamCtx.moveTo(7, 0);
+    slamCtx.lineTo(-5, 5);
+    slamCtx.lineTo(-5, -5);
+    slamCtx.closePath();
+    slamCtx.fill();
+    slamCtx.restore();
+  }
+}
+
+// ---------------------------------------------------------------------
+// Intel RealSense D435i — /realsense_data (a robot fejére szerelt, saját
+// ROS1 rosbridge-en keresztül olvasott mélységkamera). Szín-kép közvetlen
+// data-URI-ként az <img>-be, a mélység-pontfelhő pedig ugyanúgy a 3D
+// nézetbe kerül, mint a Hesai/beépített LiDAR pontfelhő — lila színnel
+// megkülönböztetve, hogy lássuk, melyik szenzorból jön melyik pont.
+// ---------------------------------------------------------------------
+const realsenseGeometry = new THREE.BufferGeometry();
+const realsenseMaterial = new THREE.PointsMaterial({ color: 0xb84dff, size: 0.03, transparent: true, opacity: 0.75, depthTest: false });
+const realsensePoints = new THREE.Points(realsenseGeometry, realsenseMaterial);
+realsensePoints.renderOrder = 997;
+scene.add(realsensePoints);
+
+const realsenseImg = document.getElementById("realsense-color-img");
+const realsenseEs = new EventSource("/realsense_data");
+realsenseEs.onmessage = (ev) => {
+  const d = JSON.parse(ev.data);
+  document.getElementById("v-realsense-status").textContent = d.connected ? "élő" : "rosbridge nincs csatlakoztatva";
+  if (d.color_jpg_b64) {
+    realsenseImg.src = "data:image/jpeg;base64," + d.color_jpg_b64;
+  }
+  if (Array.isArray(d.points)) {
+    document.getElementById("v-realsense-points").textContent = d.points.length + " pont";
+    const pos = new Float32Array(d.points.length * 3);
+    d.points.forEach((p, i) => {
+      // RealSense saját (kamera-optikai) koordinátái: x jobbra, y le, z előre —
+      // ugyanúgy robot(x,y,z)->three(x,z,y) leképzést alkalmazunk, mint a
+      // többi szenzornál, a fej-kamera durva, nem kalibrált pozíciójával eltolva.
+      pos[i * 3 + 0] = p[2];
+      pos[i * 3 + 1] = -p[1] + 0.15;
+      pos[i * 3 + 2] = p[0];
+    });
+    realsenseGeometry.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    realsenseGeometry.attributes.position.needsUpdate = true;
+  } else {
+    document.getElementById("v-realsense-points").textContent = "nincs adat";
+  }
+};
+
+const slamEs = new EventSource("/slam_data");
+slamEs.onmessage = (ev) => {
+  const d = JSON.parse(ev.data);
+  if (d.map && d.map_version !== slamMapVersion) {
+    drawSlamGrid(d.map);
+    slamMapVersion = d.map_version;
+  }
+  drawSlamPanel(d.map, d.pose);
+  const statusEl = document.getElementById("v-slam-status");
+  statusEl.textContent = !d.connected ? "rosbridge nincs csatlakoztatva" : !d.map ? "csatlakozva, várakozás térképre" : d.pose ? "élő" : "térkép kész, pozíció várakozik";
+};
+
 const es = new EventSource("/showcase_data");
 es.onmessage = (ev) => {
   const d = JSON.parse(ev.data);
@@ -957,6 +1350,8 @@ es.onmessage = (ev) => {
   document.getElementById("v-roll").textContent = ((d.roll ?? 0) * 57.2958).toFixed(1) + "°";
   document.getElementById("v-pitch").textContent = ((d.pitch ?? 0) * 57.2958).toFixed(1) + "°";
   document.getElementById("v-yaw").textContent = ((d.yaw ?? 0) * 57.2958).toFixed(1) + "°";
+
+  if (d.armed === false && window._showcaseControlSetArmedUI) window._showcaseControlSetArmedUI(false);
 
   const sdkBadge = document.getElementById("badge-sdk");
   sdkBadge.textContent = "SDK: " + (d.sdk_ready ? "KÉSZ" : "VÁRAKOZIK");

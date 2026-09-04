@@ -14,6 +14,18 @@ services:
     environment:
       - WEBRTC_BRIDGE_URL=http://localhost:5001
       - UNITREE_ROBOT_SN=  # ide kell a robot sorozatszáma
+      # SLAM/térkép bridge (opcionális) — csak akkor aktív, ha a docker/rosbridge
+      # konténer is fut (host network miatt "localhost" a helyes cím itt is).
+      # Ha üresen hagyod, a /showcase SLAM-panel "nincs adat" állapotban marad,
+      # a többi funkció változatlanul működik.
+      - ROSBRIDGE_HOST=localhost
+      - ROSBRIDGE_PORT=9090
+      - SLAM_BASE_FRAME=base_link  # TODO: 2026-09-04-i élő teszten megerősíteni
+      # Intel RealSense D435i bridge (opcionális) — ld. ../realsense_bridge/.
+      # A realsense_bridge konténer NEM host-networkös (privileged+USB-passthrough
+      # miatt), de a 9091-es portot kiteszi a hosztra, úgyhogy "localhost" itt is jó.
+      - REALSENSE_ROSBRIDGE_HOST=localhost
+      - REALSENSE_ROSBRIDGE_PORT=9091
     depends_on: []  # host network miatt nincs docker-compose szintű service-discovery, a webrtc_bridge-nek külön kell futnia
     restart: "no"
     # Flask port: 5002

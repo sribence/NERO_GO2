@@ -1,0 +1,22 @@
+# Nyers séta-felvételek (data_logger.py kimenete) — akár 100-200MB/darab,
+# nem valók a publikus repóba. Helyben maradnak a fejlesztői gépen.
+*.jsonl
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Kísérleti/köztes kimenetek a mai kalibrációs munkából — csak a végleges
+# build_map.py script és annak reprodukálható kimenete számít commitolandónak.
+walk_*_v2.*
+walk_*_v3.*
+walk_*_v4.*
+walk_*_tilted.*
+walk_*.icp.*
+walk_*_narrowyaw.*
+segment*.json
+segment*.png
+test_offset.*
+overlay_*.png
+multi_frame_overlay.png
+single_frame_local.png

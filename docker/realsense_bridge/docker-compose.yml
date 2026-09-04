@@ -1,0 +1,25 @@
+version: "3.8"
+
+# realsense_bridge — szeparált a robot natív rendszerétől.
+# Ld. ../../docs/00-BIZTONSAGI-SZABALYOK.md
+
+services:
+  realsense_bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nero_go2/realsense_bridge:latest
+    container_name: nero_go2_realsense_bridge
+    # A RealSense D435i nem tiszta USB Video Class (UVC) eszköz — a
+    # librealsense2 saját, alacsonyabb szintű USB-vezérlést is használ
+    # (firmware-parancsok, mélység-kalibráció), ezért a szokásos
+    # --device=/dev/videoX átadás nem elég; a hivatalos Intel RealSense
+    # Docker-példák is --privileged + teljes /dev/bus/usb átadást
+    # javasolnak. Host-hálózat NEM kell (csak a 9091-es port), úgyhogy
+    # ez a konténer a Docker saját hálózatán marad, nem host-módban.
+    privileged: true
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb
+    ports:
+      - "9091:9091"
+    restart: "no"
