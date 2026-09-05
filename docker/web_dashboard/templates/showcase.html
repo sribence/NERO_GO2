@@ -124,13 +124,14 @@
 
   /* Kézi nézet-váltó gombok — a felhasználó explicit kérése: gomb, nem
      automatikus váltás, a kamera-nézet állítására. */
-  #view-buttons { position: absolute; top: 218px; right: 14px; display: flex; gap: 6px; z-index: 3; }
+  #view-buttons { position: absolute; top: 218px; right: 14px; display: flex; gap: 6px; z-index: 3; flex-wrap: wrap; justify-content: flex-end; max-width: 260px; }
   #view-buttons button {
     font-family: inherit; font-size: 10px; letter-spacing: .03em; padding: 6px 10px;
     background: rgba(12,17,24,0.85); color: var(--text); border: 1px solid var(--border);
     border-radius: 4px; cursor: pointer; transition: border-color .2s, color .2s;
   }
   #view-buttons button:hover { border-color: var(--accent); color: var(--accent); }
+  #view-buttons button.active-view { border-color: var(--accent); color: var(--accent); background: rgba(34,229,255,0.12); }
 
   /* Képesség-legenda (statikus, a robot valós műszaki adatai) */
   #legend-panel .legend-item { font-size: 11px; margin-bottom: 8px; padding-left: 10px; border-left: 2px solid var(--accent); }
@@ -222,6 +223,28 @@
   /* Kézi vezérlőpult — az index.html (fő vezérlőpult, :5002) már bevált
      arm/disarm + joystick + akció-gomb mintája, ide a showcase HUD-stílusára
      hangolva (2026-09-04: a user ezt kérte a showcase oldalra is). */
+  /* 2026-09-05: a bemutatón egyértelműen meg kell különböztetni a valós
+     (élő SDK/kamera/LiDAR) funkciókat a ma esti szimulált koncepció-demóktól
+     — user explicit kérése, ne tűnjön becsapósnak a diákok felé. */
+  .panel.concept-demo { position: relative; border-color: #ffb020; }
+  .concept-demo-badge {
+    background: #ffb020; color: #05070a; font-size: 9px; font-weight: 800;
+    letter-spacing: 0.04em; padding: 3px 8px; border-radius: 3px;
+    display: inline-block; margin-bottom: 8px;
+  }
+
+  #calib-panel .calib-row { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; font-size: 10px; color: var(--muted); }
+  #calib-panel .calib-row label { flex: 0 0 130px; }
+  #calib-panel .calib-row input[type="range"] { flex: 1; }
+  #calib-panel .calib-row span { flex: 0 0 34px; text-align: right; color: var(--text); }
+
+  #patrol-panel .nav-btn {
+    font-size: 10px; padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03); color: var(--muted); font-family: inherit; cursor: pointer;
+  }
+  #patrol-panel .nav-btn.active { border-color: var(--accent); color: var(--accent); }
+  #patrol-panel .nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
   #control-panel .arm-btn {
     width: 100%; padding: 10px; font-size: 12px; font-weight: 700; letter-spacing: .04em;
     border-radius: 4px; border: 1px solid var(--border); cursor: pointer; margin-bottom: 12px;
@@ -260,6 +283,7 @@
 <div id="layout">
   <header>
     <div class="title">NERO_GO2 <b>&mdash; CAPABILITY SHOWCASE</b></div>
+    <button id="estop-btn" style="background:#c8102e; color:#fff; border:none; font-weight:900; font-size:15px; letter-spacing:1px; padding:10px 22px; border-radius:6px; cursor:pointer; box-shadow:0 0 12px rgba(200,16,46,0.6);">⛔ VÉSZLEÁLLÍTÁS</button>
     <div class="mode" id="mode-label">&mdash;</div>
     <div style="display:flex; align-items:center; gap:14px;">
       <span id="data-source-badge">&mdash;</span>
@@ -285,6 +309,8 @@
     <div id="cam-panel">
       <div class="cam-label">ELÜLSŐ KAMERA &mdash; <span id="cam-source-label">SZIMULÁLT</span></div>
       <img id="cam-feed" src="/camera_feed" alt="élő kamera">
+      <canvas id="security-overlay" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;"></canvas>
+      <button id="security-toggle-btn" title="Koncepció demó — szimulált detekció, nem valós CV" style="position:absolute; top:6px; right:6px; z-index:5; font-size:10px; padding:5px 10px; border-radius:4px; border:1px solid #ffb020; background:rgba(5,7,10,0.7); color:#ffb020; cursor:pointer;">🛡 Security mód (demó)</button>
       <div class="reticle"></div>
       <div class="scanline"></div>
     </div>
@@ -296,6 +322,9 @@
     <div id="view-buttons">
       <button id="view-close-btn" type="button">🔍 Ízület-közeli</button>
       <button id="view-wide-btn" type="button">🌐 LiDAR-távoli</button>
+      <button id="view-tpv-btn" type="button" class="active-view">👁 Külső nézet (TPV)</button>
+      <button id="view-fpv-btn" type="button">🐕 Robot-nézet (FPV)</button>
+      <button id="lidar-toggle-btn" type="button" class="active-view">📡 LiDAR pontok: BE</button>
     </div>
   </div>
 
@@ -338,17 +367,51 @@
       <div id="motor-tau-bars"></div>
     </div>
 
-    <div class="panel" id="realsense-panel">
-      <h3>Intel RealSense D435i (élő)</h3>
-      <img id="realsense-color-img" alt="RealSense szín-kép" style="width:100%; border-radius:4px; background:#05070a; aspect-ratio:4/3; object-fit:cover; display:block;">
-      <div class="kv" style="margin-top:6px;"><span>Állapot</span><b id="v-realsense-status">&mdash;</b></div>
-      <div class="kv"><span>Mélység-pontfelhő</span><b id="v-realsense-points">&mdash;</b></div>
+    <div class="panel" id="calib-panel">
+      <h3>🛠 Élő kalibráció <span style="font-size:10px; color:var(--muted); font-weight:normal;">(azonnali, redeploy nélkül)</span></h3>
+      <div class="calib-row"><label>Robot X eltolás</label><input type="range" id="calib-robot-x" min="-3" max="3" step="0.05" value="0"><span id="calib-robot-x-val">0.00</span></div>
+      <div class="calib-row"><label>Robot Y eltolás</label><input type="range" id="calib-robot-y" min="-3" max="3" step="0.05" value="0"><span id="calib-robot-y-val">0.00</span></div>
+      <div class="calib-row"><label>Avatár irány</label><input type="range" id="calib-avatar-yaw" min="-180" max="180" step="1" value="180"><span id="calib-avatar-yaw-val">180°</span></div>
+      <div class="calib-row"><label>Beépített LiDAR forgás</label><input type="range" id="calib-lidar-yaw" min="-180" max="180" step="1" value="0"><span id="calib-lidar-yaw-val">0°</span></div>
+      <div class="calib-row"><label style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="calib-lidar-mirror" style="width:auto;"> Beépített LiDAR tükrözés</label></div>
+      <div class="calib-row"><label>Hesai forgás</label><input type="range" id="calib-hesai-yaw" min="-180" max="180" step="1" value="90"><span id="calib-hesai-yaw-val">90°</span></div>
+      <div class="calib-row"><label style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="calib-hesai-mirror" style="width:auto;"> Hesai tükrözés</label></div>
     </div>
 
-    <div class="panel" id="slam-map-panel">
-      <h3>SLAM térkép &amp; pozíció (élő)</h3>
-      <canvas id="slam-map-canvas" width="300" height="220" style="width:100%; border-radius:4px; background:#05070a;"></canvas>
-      <div class="kv" style="margin-top:6px;"><span>Állapot</span><b id="v-slam-status">&mdash;</b></div>
+    <div class="panel" id="patrol-panel">
+      <h3>Robotporszívó mód <span style="font-size:10px; color:var(--muted); font-weight:normal;">(élő térkép — Hesai LiDAR + odometria)</span></h3>
+      <canvas id="patrol-canvas" width="300" height="300" style="width:100%; border-radius:4px; background:#05070a; cursor:crosshair;"></canvas>
+      <div class="kv" style="margin-top:6px;"><span>Mód</span><b id="v-nav-mode">azonnali</b></div>
+      <div class="kv"><span>Állapot</span><b id="v-nav-status">&mdash;</b></div>
+      <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
+        <button id="nav-mode-immediate" class="nav-btn active">Azonnali kattintás</button>
+        <button id="nav-mode-script" class="nav-btn">Útvonal-lista</button>
+        <button id="nav-script-run" class="nav-btn" disabled>▶ Lista indítása</button>
+        <button id="nav-script-clear" class="nav-btn">Törlés</button>
+      </div>
+      <label style="display:flex; align-items:center; gap:5px; font-size:10px; color:var(--muted); margin-top:6px;">
+        <input type="checkbox" id="nav-next-photo"> következő pont: 📷 fotó-akció
+      </label>
+      <div id="nav-waypoint-list" style="font-size:10px; color:var(--muted); margin-top:6px;"></div>
+      <div style="font-size:9px; color:#ffb020; margin-top:6px;">⚠ A térkép élő, de a kattintás ma NEM mozgatja a robotot — csak az útvonal/fotó-terv jelenik meg. A robotot kizárólag a joystick/WASD vezérli.</div>
+    </div>
+
+    <div class="panel concept-demo" id="photo-events-panel">
+      <div class="concept-demo-badge">⚠ KONCEPCIÓ DEMÓ (SZIMULÁCIÓ)</div>
+      <h3>Fotó-események</h3>
+      <div id="photo-events-list" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+    </div>
+
+    <div class="panel" id="thermal-panel">
+      <h3>Thermal Vision <span style="font-size:10px; color:var(--muted); font-weight:normal;">(MLX90640 — külső mikrokontroller-híd folyamatban)</span></h3>
+      <canvas id="thermal-canvas" width="128" height="96" style="width:100%; border-radius:4px; background:#05070a; filter:blur(1.5px);"></canvas>
+      <div class="kv" style="margin-top:6px;"><span>Tartomány</span><b id="v-thermal-range">&mdash;</b></div>
+    </div>
+
+    <div class="panel concept-demo" id="security-log-panel">
+      <div class="concept-demo-badge">⚠ KONCEPCIÓ DEMÓ (SZIMULÁCIÓ)</div>
+      <h3>Security log <span style="font-size:10px; color:var(--muted); font-weight:normal;">(demo — szimulált detekció)</span></h3>
+      <div id="security-log-list" style="font-size:10px; color:var(--muted); max-height:90px; overflow-y:auto;"></div>
     </div>
 
     <div class="panel" id="control-panel">
@@ -432,6 +495,36 @@ let camRadius = 1.6;      // induláskor mindkét LiDAR-pontfelhő is látszik
 const CAM_POLAR_MIN = 0.25, CAM_POLAR_MAX = Math.PI - 0.25;
 const CAM_RADIUS_MIN = 0.5, CAM_RADIUS_MAX = 6;
 
+// ---------------------------------------------------------------------
+// Élő kalibráció — user kérése: ahelyett, hogy vakon tippelgetnénk
+// szerver-redeploy-okkal, a felhasználó saját maga hangolja a szögeket/
+// tükrözéseket/eltolásokat élőben, amíg nem egyezik a valósággal. Minden
+// más kódrész ebből a window._calib objektumból olvas.
+window._calib = {
+  robotX: 0, robotY: 0,
+  avatarYawDeg: 180,
+  lidarYawDeg: 0, lidarMirror: false,
+  hesaiYawDeg: 90, hesaiMirror: false,
+};
+(function setupCalibPanel() {
+  function bind(rangeId, valId, key, isDeg) {
+    const el = document.getElementById(rangeId);
+    const valEl = document.getElementById(valId);
+    el.addEventListener("input", () => {
+      const v = parseFloat(el.value);
+      window._calib[key] = v;
+      valEl.textContent = isDeg ? Math.round(v) + "°" : v.toFixed(2);
+    });
+  }
+  bind("calib-robot-x", "calib-robot-x-val", "robotX", false);
+  bind("calib-robot-y", "calib-robot-y-val", "robotY", false);
+  bind("calib-avatar-yaw", "calib-avatar-yaw-val", "avatarYawDeg", true);
+  bind("calib-lidar-yaw", "calib-lidar-yaw-val", "lidarYawDeg", true);
+  bind("calib-hesai-yaw", "calib-hesai-yaw-val", "hesaiYawDeg", true);
+  document.getElementById("calib-lidar-mirror").addEventListener("change", (e) => { window._calib.lidarMirror = e.target.checked; });
+  document.getElementById("calib-hesai-mirror").addEventListener("change", (e) => { window._calib.hesaiMirror = e.target.checked; });
+})();
+
 (function setupManualOrbit() {
   const dom = renderer.domElement;
   dom.style.touchAction = "none";
@@ -466,7 +559,93 @@ const CAM_RADIUS_MIN = 0.5, CAM_RADIUS_MAX = 6;
   document.getElementById("view-wide-btn").addEventListener("click", () => {
     camRadius = 3.4; camPolar = 1.15;
   });
+
+  const tpvBtn = document.getElementById("view-tpv-btn");
+  const fpvBtn = document.getElementById("view-fpv-btn");
+  tpvBtn.addEventListener("click", () => {
+    setCameraMode("tpv");
+    tpvBtn.classList.add("active-view");
+    fpvBtn.classList.remove("active-view");
+  });
+  fpvBtn.addEventListener("click", () => {
+    setCameraMode("fpv");
+    fpvBtn.classList.add("active-view");
+    tpvBtn.classList.remove("active-view");
+  });
 })();
+
+// 2026-09-05: az élő occupancy grid ("Robotporszívó mód") most a FŐ 3D
+// nézetben is megjelenik, padló-textúraként a robot alatt — user explicit
+// kérése, hogy ne csak egy különálló, kis oldalpanelen legyen látható. A
+// kis 2D panel emellett megmarad, mert az kell a pontos kattintás-alapú
+// waypoint-kijelöléshez (perspektivikus 3D-ben nehéz pontosan kattintani).
+const liveMapFloorGeom = new THREE.PlaneGeometry(1, 1);
+const liveMapFloorMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false });
+const liveMapFloorMesh = new THREE.Mesh(liveMapFloorGeom, liveMapFloorMat);
+liveMapFloorMesh.rotation.x = -Math.PI / 2; // vízszintesre fektetve (alapból függőleges sík)
+liveMapFloorMesh.position.y = -0.02; // épphogy a lábak/talaj alatt, ne takarja a robotot
+liveMapFloorMesh.visible = false; // amíg nincs élő adat
+// 2026-09-05 FIX: explicit, garantáltan a LiDAR-pontok ELŐTT rajzolódjon
+// (a pontok renderOrder 998/999) — korábban ez nem volt explicit, és
+// közelről/FPV-ben a féligáttetsző padló időnként eltakarta a pontokat.
+liveMapFloorMesh.renderOrder = -1;
+scene.add(liveMapFloorMesh);
+
+function updateLiveMapFloor(d) {
+  if (!d.ready) { liveMapFloorMesh.visible = false; return; }
+  const off = document.createElement("canvas");
+  off.width = d.width; off.height = d.height;
+  const octx = off.getContext("2d");
+  const img = octx.createImageData(d.width, d.height);
+  for (let i = 0; i < d.data.length; i++) {
+    const v = d.data[i];
+    let r, g, b, a;
+    if (v < 0) { r = 20; g = 25; b = 32; a = 60; }        // ismeretlen — alig látszik
+    else if (v < 50) { r = 20; g = 40; b = 50; a = 90; }   // szabad — halvány sötétkék
+    else { r = 123; g = 255; b = 176; a = 230; }           // fal — akcens zöld, jól látható
+    const row = d.height - 1 - Math.floor(i / d.width);
+    const col = i % d.width;
+    const p = (row * d.width + col) * 4;
+    img.data[p] = r; img.data[p + 1] = g; img.data[p + 2] = b; img.data[p + 3] = a;
+  }
+  octx.putImageData(img, 0, 0);
+
+  if (liveMapFloorMat.map) liveMapFloorMat.map.dispose();
+  const tex = new THREE.CanvasTexture(off);
+  // 2026-09-05 FIX: alapból lágyított (Linear) nagyítást használ a
+  // WebGL-textúra, ami felnagyításkor homályosnak tűnik — élesre váltjuk,
+  // hogy inkább "pixeles/blokkos" legyen (ami a tényleges alacsony
+  // felbontást mutatja), ne homályos.
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  liveMapFloorMat.map = tex;
+  liveMapFloorMat.needsUpdate = true;
+
+  // 2026-09-05 FIX (user kérése): a térkép mostantól FIX a jelenetben (a
+  // sík geometriáját csak egyszer állítjuk be, utána sosem mozgatjuk) —
+  // a TPV kameránál is fix marad, a CAM_TARGET pont a világ-origóra néz.
+  // Az AVATÁR (robotGroup) mozog RAJTA a valós (robot_x, robot_y) alapján,
+  // a térkép középpontjához képest. Korábban fordítva volt (fix avatár,
+  // mozgó térkép alatta) — a user szerint ez zavaróbb és nehezebben
+  // értelmezhető volt, mint egy "drónnézetből" mozgó robot egy fix térképen.
+  const widthM = d.width * d.resolution, heightM = d.height * d.resolution;
+  if (!liveMapFloorMesh.userData.sized) {
+    liveMapFloorGeom.dispose();
+    liveMapFloorMesh.geometry = new THREE.PlaneGeometry(widthM, heightM);
+    liveMapFloorMesh.position.x = 0;
+    liveMapFloorMesh.position.z = 0;
+    liveMapFloorMesh.userData.sized = true;
+  }
+  window._liveMapCenterWorld = { x: d.origin_x + widthM / 2, y: d.origin_y + heightM / 2 };
+  liveMapFloorMesh.visible = true;
+
+  // Az avatár a fix térkép közepéhez viszonyított valós eltolással mozog
+  // (csak x/z — a .y a rögzített álló-magasság, azt nem bántjuk).
+  if (typeof d.robot_x === "number" && typeof d.robot_y === "number") {
+    robotGroup.position.x = d.robot_x - window._liveMapCenterWorld.x + window._calib.robotX;
+    robotGroup.position.z = d.robot_y - window._liveMapCenterWorld.y + window._calib.robotY;
+  }
+}
 
 scene.add(new THREE.AmbientLight(0x557788, 1.2));
 const key = new THREE.DirectionalLight(0x22e5ff, 1.4);
@@ -656,8 +835,12 @@ function applyMotorQ(q) {
   LEGS.forEach((leg, i) => {
     const base = i * 3;
     legPivots[i].hip.rotation.x = q[base + 0];
-    legPivots[i].thigh.rotation.z = q[base + 1];
-    legPivots[i].calf.rotation.z = q[base + 2];
+    // 2026-09-05 FIX: a comb/lábszár hajlás iránya fordítva volt (a
+    // szimulációban előre hajoltak a lábak, valóságban/alapból hátra) —
+    // user élő tesztje szerint egyszerű előjel-hiba, nem a bal/jobb
+    // tükrözési probléma (az külön ügy, ld. Hesai/láb-emelés kommentek).
+    legPivots[i].thigh.rotation.z = -q[base + 1];
+    legPivots[i].calf.rotation.z = -q[base + 2];
   });
 }
 
@@ -721,6 +904,12 @@ const lidarGeometry = new THREE.BufferGeometry();
 const lidarMaterial = new THREE.PointsMaterial({ size: 0.035, transparent: true, opacity: 0.8, vertexColors: true, sizeAttenuation: true, depthTest: false });
 const lidarPoints = new THREE.Points(lidarGeometry, lidarMaterial);
 lidarPoints.renderOrder = 999; // depthTest:false miatt mindig a tetején rajzolódjon, ne takarja el a robot-test
+// 2026-09-05: a scene gyermeke (NEM a robotGroup-é) — a pontokat MÁR a
+// befogás pillanatában érvényes orientációval világ-koordinátákba
+// forgatva kapjuk (ld. refreshLidar()), ezért itt nem szabad ŐKET IS
+// folyamatosan forgatni a robot élő animációjával, különben a régi
+// (2 másodpercig érvényes) pontok hamis irányba csúsznának el, majd
+// "visszaugranának" a következő friss adatnál.
 scene.add(lidarPoints);
 
 // A 2026-09-04-én felszerelt külső Hesai PandarXT-16 pontfelhője — saját
@@ -733,8 +922,28 @@ const hesaiGeometry = new THREE.BufferGeometry();
 const hesaiMaterial = new THREE.PointsMaterial({ color: 0xffb84d, size: 0.04, transparent: true, opacity: 0.75, depthTest: false });
 const hesaiPoints = new THREE.Points(hesaiGeometry, hesaiMaterial);
 hesaiPoints.renderOrder = 998;
-hesaiPoints.position.set(0, 0.05, 0); // közelítő becslés, nincs kalibrálva
+// 2026-09-05: a magasság-eltolás mostantól a per-pont transzformba van
+// beépítve (refreshLidar), mert az objektum-szintű .position fix maradna,
+// miközben az avatár most már el is mozdulhat (ld. updateLiveMapFloor).
+// A tegnap esti pásztázással validált 90 fokos szenzor-extrinsic korrekció
+// (ld. app.py LIVE_MAP_YAW_OFFSET) — three.js Y-tengely = a robot saját
+// függőleges (yaw-)tengelye a jelenlegi x,z,y koordináta-leképzésben.
+const HESAI_EXTRINSIC_QUAT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+// 2026-09-05: scene gyermeke, ld. a lidarPoints fenti kommentjét.
 scene.add(hesaiPoints);
+
+// 2026-09-05: LiDAR pontfelhő KI/BE kapcsoló — a user explicit kérése, hogy
+// bármilyen kamera-távolságnál (nem csak a "LiDAR-távoli" preset-nél) el
+// tudja rejteni/megjeleníteni a pontokat.
+const lidarToggleBtn = document.getElementById("lidar-toggle-btn");
+let lidarPointsVisible = true;
+lidarToggleBtn.addEventListener("click", () => {
+  lidarPointsVisible = !lidarPointsVisible;
+  lidarPoints.visible = lidarPointsVisible;
+  hesaiPoints.visible = lidarPointsVisible;
+  lidarToggleBtn.textContent = lidarPointsVisible ? "📡 LiDAR pontok: BE" : "📡 LiDAR pontok: KI";
+  lidarToggleBtn.classList.toggle("active-view", lidarPointsVisible);
+});
 
 // Diagnosztikai csúszkák: annak kiderítésére, hogy a pontfelhő ténylegesen
 // megérkezik-e, csak a jelenlegi méret/kamera-zoom miatt nem látszik.
@@ -767,10 +976,33 @@ async function refreshLidar() {
     const positions = new Float32Array(points.length * 3);
     const colors = new Float32Array(points.length * 3);
     const c = new THREE.Color();
+    // 2026-09-05 FIX: a pontokat a BEFOGÁS PILLANATÁBAN érvényes robot-
+    // orientációval világ-koordinátákba forgatjuk, MIELŐTT a scene-hez
+    // adnánk (nem a robotGroup gyermekeként) — így a pontfelhő a rögzítés
+    // pillanatában helyesen áll, és utána NEM forog tovább a robot-modell
+    // élő (2 Hz-es) animációjával együtt. Korábban a robotGroup gyermeke
+    // volt: emiatt a 2 másodpercenkénti frissítések között a RÉGI (már
+    // elavult, szenzor-lokális) pontok folyamatosan újra-forogtak a
+    // legutóbbi orientációval, majd "visszaugrottak", amint friss adat jött.
+    // 2026-09-05 FIX #2: NEM three.js quaternion-t használunk a forgatáshoz
+    // — user élő tesztje kimutatta, hogy az a validált Python-térképhez
+    // (app.py world_xy-forgatás) képest TÜKRÖZVE forgatja a pontokat (a
+    // three.js Y-tengely-quaternion és a Python 2D-mátrix "kézisége" nem
+    // egyezik, amikor x,y -> x,z tengely-cserét is csinálunk). Ehelyett
+    // UGYANAZT a sík 2D forgatásmátrixot alkalmazzuk itt is, MIELŐTT a
+    // three.js x,z,y leképzés megtörténne — így garantáltan ugyanaz a
+    // "kéziség", mint a már bevizsgált, helyes térképen.
+    const yaw0 = (window._lastRawYaw || 0) + (window._calib.lidarYawDeg * Math.PI / 180);
+    const cosY0 = Math.cos(yaw0), sinY0 = Math.sin(yaw0);
+    const lidarMirrorSign = window._calib.lidarMirror ? -1 : 1;
+    const capturePos = robotGroup.position.clone(); // 2026-09-05: az avatár most mozog is, nemcsak forog
     points.forEach((p, i) => {
-      positions[i * 3 + 0] = p[0];
-      positions[i * 3 + 1] = p[2];
-      positions[i * 3 + 2] = p[1];
+      const p1 = p[1] * lidarMirrorSign;
+      const rx = cosY0 * p[0] - sinY0 * p1;
+      const ry = sinY0 * p[0] + cosY0 * p1;
+      positions[i * 3 + 0] = rx + capturePos.x;
+      positions[i * 3 + 1] = p[2] + capturePos.y;
+      positions[i * 3 + 2] = ry + capturePos.z;
       const dist = Math.sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
       // közel = cián, távol = mélykék — távolság-alapú színezés, mint egy valós LiDAR-viewerben
       const t = Math.min(1, dist / 3.5);
@@ -791,10 +1023,21 @@ async function refreshLidar() {
     const hpoints = await res2.json();
     if (!Array.isArray(hpoints) || hpoints.length === 0) throw new Error("üres pontfelhő");
     const hpos = new Float32Array(hpoints.length * 3);
+    // 2026-09-05 FIX #2 (ld. a lidar-blokk kommentjét): ugyanaz a sík
+    // 2D forgatásmátrix, mint a Python térkép (LIVE_MAP_YAW_OFFSET +90°),
+    // three.js quaternion helyett — a quaternion-alapú verzió tükrözve
+    // forgatta a Hesai-pontokat a validált térképhez képest.
+    const hesaiYaw = (window._lastRawYaw || 0) + (window._calib.hesaiYawDeg * Math.PI / 180);
+    const cosYh = Math.cos(hesaiYaw), sinYh = Math.sin(hesaiYaw);
+    const hesaiMirrorSign = window._calib.hesaiMirror ? -1 : 1;
+    const hesaiCapturePos = robotGroup.position.clone(); // 2026-09-05: mozgó avatár, ld. lidar-transzform kommentje
     hpoints.forEach((p, i) => {
-      hpos[i * 3 + 0] = p[0];
-      hpos[i * 3 + 1] = p[2];
-      hpos[i * 3 + 2] = p[1];
+      const p1 = p[1] * hesaiMirrorSign;
+      const rx = cosYh * p[0] - sinYh * p1;
+      const ry = sinYh * p[0] + cosYh * p1;
+      hpos[i * 3 + 0] = rx + hesaiCapturePos.x;
+      hpos[i * 3 + 1] = p[2] + hesaiCapturePos.y + 0.05; // közelítő szenzor-magasság-eltolás
+      hpos[i * 3 + 2] = ry + hesaiCapturePos.z;
     });
     hesaiGeometry.setAttribute("position", new THREE.BufferAttribute(hpos, 3));
     hesaiGeometry.attributes.position.needsUpdate = true;
@@ -811,7 +1054,12 @@ function applyBodyOrientation(roll, pitch, yaw) {
   // robot roll(x)/pitch(y)/yaw(z) -> three: roll marad X, pitch -> Z, yaw -> Y
   robotGroup.rotation.x = roll || 0;
   robotGroup.rotation.z = pitch || 0;
-  robotGroup.rotation.y = -(yaw || 0);
+  // 2026-09-05 FIX: user élő tesztje szerint az avatár "eleje" pontosan
+  // 180 fokkal a valódi haladási irány ellenkezőjébe mutatott (a
+  // helyváltoztatás iránya helyes volt, csak a megjelenített orientáció
+  // volt fordítva) — + Math.PI a diagnosztizált, konkrét eltolás.
+  robotGroup.rotation.y = -(yaw || 0) + (window._calib.avatarYawDeg * Math.PI / 180);
+  window._lastRawYaw = yaw || 0; // a LiDAR/Hesai 3D-transzformnak kell, ld. refreshLidar()
 }
 
 function onResize() {
@@ -821,18 +1069,43 @@ function onResize() {
 }
 window.addEventListener("resize", onResize);
 
+// 2026-09-05: kamera-nézet váltó (Third-Person / First-Person). TPV-ben a
+// kamera a scene gyermeke, gömbi koordinátákkal, felhasználói húzással
+// (setupManualOrbit) — ez a régi, változatlan viselkedés. FPV-ben a kamera
+// a robotGroup GYERMEKévé válik, fix lokális pozícióval/iránnyal — ezért
+// automatikusan együtt mozog/forog a robottal, "mintha a hátán ülnénk".
+let cameraMode = "tpv";
+const FPV_LOCAL_POS = new THREE.Vector3(-0.02, 0.16, 0);
+const FPV_LOCAL_LOOKAT = new THREE.Vector3(1.0, 0.05, 0); // előre (+X = "ELÜL", ld. frontLabel)
+
+function setCameraMode(mode) {
+  cameraMode = mode;
+  if (mode === "fpv") {
+    robotGroup.add(camera);
+    camera.position.copy(FPV_LOCAL_POS);
+    const worldTarget = robotGroup.localToWorld(FPV_LOCAL_LOOKAT.clone());
+    camera.lookAt(worldTarget);
+  } else {
+    scene.add(camera);
+  }
+}
+
 let sweepAngle = 0;
 function animate() {
   requestAnimationFrame(animate);
-  // Gömbi koordináták: camAngle=azimut, camPolar=magassági szög — mindkettő
-  // kizárólag a felhasználó húzása/görgetése állítja (setupManualOrbit),
-  // itt nincs automatikus változtatás.
-  camera.position.set(
-    camRadius * Math.sin(camPolar) * Math.cos(camAngle),
-    camRadius * Math.cos(camPolar),
-    camRadius * Math.sin(camPolar) * Math.sin(camAngle)
-  );
-  camera.lookAt(CAM_TARGET);
+  if (cameraMode === "tpv") {
+    // Gömbi koordináták: camAngle=azimut, camPolar=magassági szög — mindkettő
+    // kizárólag a felhasználó húzása/görgetése állítja (setupManualOrbit),
+    // itt nincs automatikus változtatás.
+    camera.position.set(
+      camRadius * Math.sin(camPolar) * Math.cos(camAngle),
+      camRadius * Math.cos(camPolar),
+      camRadius * Math.sin(camPolar) * Math.sin(camAngle)
+    );
+    camera.lookAt(CAM_TARGET);
+  }
+  // FPV-ben nincs teendő itt — a kamera a robotGroup gyermeke, a fix
+  // lokális transzformot a szülő világ-mátrixa automatikusan viszi tovább.
   sweepAngle += 0.02;
   sweepPivot.rotation.y = sweepAngle;
   robotGroup.updateMatrixWorld(true);
@@ -1201,131 +1474,392 @@ function updatePower(q, tau) {
 })();
 
 // ---------------------------------------------------------------------
-// SLAM térkép + élő pozíció — /slam_data (rosbridge -> app.py, ld. ott).
-// occupancy grid: -1 ismeretlen, 0 szabad, 100 akadály (nav_msgs/OccupancyGrid
-// konvenció). Csak akkor rajzoljuk újra a rácsot, ha a map_version változott
-// (a térkép ritkán módosul, a pozíció viszont minden keretben).
+// "Robotporszívó mód" (demo) — 2026-09-04 esti előkészítés a másnapi
+// bemutatóhoz. Statikus térkép-PNG háttér (nincs élő occupancy-grid ma
+// este, ld. beszélgetés) + a robot élő pozíciója (piros pötty, a
+// /showcase_data SSE-ből, ami mock módban egy szimulált körpályát ad).
+// Kattintásra: "azonnali" módban egyből navigál, "útvonal-lista" módban
+// pontokat gyűjt, amiket a /api/navigate {queue:[...]} indít el.
 // ---------------------------------------------------------------------
-const slamCanvas = document.getElementById("slam-map-canvas");
-const slamCtx = slamCanvas.getContext("2d");
-let slamMapVersion = -1;
-let slamGridImageData = null;
+(function setupPatrolPanel() {
+  const canvas = document.getElementById("patrol-canvas");
+  const ctx = canvas.getContext("2d");
+  const statusEl = document.getElementById("v-nav-status");
+  const modeEl = document.getElementById("v-nav-mode");
+  const listEl = document.getElementById("nav-waypoint-list");
+  const btnImmediate = document.getElementById("nav-mode-immediate");
+  const btnScript = document.getElementById("nav-mode-script");
+  const btnRun = document.getElementById("nav-script-run");
+  const btnClear = document.getElementById("nav-script-clear");
 
-function drawSlamGrid(map) {
-  const { width, height, data } = map;
-  const off = document.createElement("canvas");
-  off.width = width; off.height = height;
-  const octx = off.getContext("2d");
-  const img = octx.createImageData(width, height);
-  for (let i = 0; i < data.length; i++) {
-    const v = data[i];
-    let r, g, b;
-    if (v < 0) { r = 15; g = 22; b = 31; }              // ismeretlen — sötét
-    else if (v < 50) { r = 15; g = 30; b = 40; }         // szabad — kékes sötét
-    else { r = 123; g = 255; b = 176; }                  // akadály — akcens zöld
-    // az occupancy grid sor-elrendezése alulról felfelé fut (ROS konvenció),
-    // a canvas Y lefelé nő — a rajzoláshoz meg kell fordítani a sorokat.
-    const row = height - 1 - Math.floor(i / width);
-    const col = i % width;
-    const p = (row * width + col) * 4;
-    img.data[p] = r; img.data[p + 1] = g; img.data[p + 2] = b; img.data[p + 3] = 255;
+  let mapImg = null;
+  let mapMeta = null;  // {width, height, resolution, origin_x, origin_y}
+  let mode = "immediate";
+  let scriptPoints = [];  // [{x, y}] világ-koordinátákban, összegyűjtve kattintással
+  let robotPose = { x: null, y: null, yaw: 0 };
+  let armed = false;
+
+  // 2026-09-05: ÉLŐ occupancy grid (/live_map_data, ld. app.py
+  // _live_map_thread) — a tegnap esti build_map.py logika élő verziója,
+  // valós hesai_bridge + valós SDK-odometria alapján. A statikus PNG
+  // fallback megszűnt.
+  function drawGridToOffscreen(grid) {
+    const off = document.createElement("canvas");
+    off.width = grid.width; off.height = grid.height;
+    const octx = off.getContext("2d");
+    const img = octx.createImageData(grid.width, grid.height);
+    for (let i = 0; i < grid.data.length; i++) {
+      const v = grid.data[i];
+      let r, g, b;
+      if (v < 0) { r = 15; g = 22; b = 31; }
+      else if (v < 50) { r = 15; g = 30; b = 40; }
+      else { r = 123; g = 255; b = 176; }
+      const row = grid.height - 1 - Math.floor(i / grid.width);
+      const col = i % grid.width;
+      const p = (row * grid.width + col) * 4;
+      img.data[p] = r; img.data[p + 1] = g; img.data[p + 2] = b; img.data[p + 3] = 255;
+    }
+    octx.putImageData(img, 0, 0);
+    return off;
   }
-  octx.putImageData(img, 0, 0);
-  slamGridImageData = off;
-}
 
-function drawSlamPanel(map, pose) {
-  const w = slamCanvas.width, h = slamCanvas.height;
-  slamCtx.clearRect(0, 0, w, h);
-  if (!map || !slamGridImageData) {
-    slamCtx.fillStyle = "#5f7386";
-    slamCtx.font = "11px Consolas, monospace";
-    slamCtx.fillText("nincs élő térkép-adat", 10, h / 2);
-    return;
+  const liveMapEs = new EventSource("/live_map_data");
+  liveMapEs.onmessage = (ev) => {
+    const d = JSON.parse(ev.data);
+    if (typeof updateLiveMapFloor === "function") updateLiveMapFloor(d);
+    if (!d.ready) {
+      statusEl.textContent = "élő térkép még épül...";
+      return;
+    }
+    mapMeta = { width: d.width, height: d.height, resolution: d.resolution, origin_x: d.origin_x, origin_y: d.origin_y };
+    mapImg = drawGridToOffscreen(d);
+    if (typeof d.robot_x === "number" && typeof d.robot_y === "number") {
+      robotPose = { x: d.robot_x, y: d.robot_y, yaw: d.robot_yaw || 0 };
+    }
+    redraw();
+  };
+
+  // Az occupancy grid (build_map.py-hoz hasonlóan) függőlegesen tükrözve van
+  // mentve/rajzolva (Y felfelé nő a világban, a kép/canvas Y-tengelye
+  // lefelé) — ugyanazt a transzformot alkalmazzuk itt is, világ->canvas
+  // pixel irányba.
+  function worldToCanvas(wx, wy) {
+    const scale = Math.min(canvas.width / mapMeta.width, canvas.height / mapMeta.height);
+    const dw = mapMeta.width * scale, dh = mapMeta.height * scale;
+    const ox = (canvas.width - dw) / 2, oy = (canvas.height - dh) / 2;
+    const gx = (wx - mapMeta.origin_x) / mapMeta.resolution;
+    const gy = mapMeta.height - 1 - (wy - mapMeta.origin_y) / mapMeta.resolution;
+    return [ox + gx * scale, oy + gy * scale, scale];
   }
-  // occupancy grid -> canvas: nearest-neighbor felskálázás, arányt megtartva.
-  const scale = Math.min(w / map.width, h / map.height);
-  const dw = map.width * scale, dh = map.height * scale;
-  const ox = (w - dw) / 2, oy = (h - dh) / 2;
-  slamCtx.imageSmoothingEnabled = false;
-  slamCtx.drawImage(slamGridImageData, ox, oy, dw, dh);
 
-  if (pose) {
-    // világ (méter) -> rács-index -> canvas-pixel, a fenti transzformmal.
-    const gx = (pose.x - map.origin_x) / map.resolution;
-    const gy = map.height - 1 - (pose.y - map.origin_y) / map.resolution;
-    const px = ox + gx * scale, py = oy + gy * scale;
-    slamCtx.save();
-    slamCtx.translate(px, py);
-    slamCtx.rotate(-pose.yaw);
-    slamCtx.fillStyle = "#22e5ff";
-    slamCtx.beginPath();
-    slamCtx.moveTo(7, 0);
-    slamCtx.lineTo(-5, 5);
-    slamCtx.lineTo(-5, -5);
-    slamCtx.closePath();
-    slamCtx.fill();
-    slamCtx.restore();
+  function canvasToWorld(px, py) {
+    const scale = Math.min(canvas.width / mapMeta.width, canvas.height / mapMeta.height);
+    const dw = mapMeta.width * scale, dh = mapMeta.height * scale;
+    const ox = (canvas.width - dw) / 2, oy = (canvas.height - dh) / 2;
+    const gx = (px - ox) / scale;
+    const gy = (py - oy) / scale;
+    const wx = mapMeta.origin_x + gx * mapMeta.resolution;
+    const wy = mapMeta.origin_y + (mapMeta.height - 1 - gy) * mapMeta.resolution;
+    return [wx, wy];
   }
-}
 
-// ---------------------------------------------------------------------
-// Intel RealSense D435i — /realsense_data (a robot fejére szerelt, saját
-// ROS1 rosbridge-en keresztül olvasott mélységkamera). Szín-kép közvetlen
-// data-URI-ként az <img>-be, a mélység-pontfelhő pedig ugyanúgy a 3D
-// nézetbe kerül, mint a Hesai/beépített LiDAR pontfelhő — lila színnel
-// megkülönböztetve, hogy lássuk, melyik szenzorból jön melyik pont.
-// ---------------------------------------------------------------------
-const realsenseGeometry = new THREE.BufferGeometry();
-const realsenseMaterial = new THREE.PointsMaterial({ color: 0xb84dff, size: 0.03, transparent: true, opacity: 0.75, depthTest: false });
-const realsensePoints = new THREE.Points(realsenseGeometry, realsenseMaterial);
-realsensePoints.renderOrder = 997;
-scene.add(realsensePoints);
+  function redraw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!mapImg || !mapMeta) {
+      ctx.fillStyle = "#5f7386";
+      ctx.font = "11px Consolas, monospace";
+      ctx.fillText("térkép betöltése...", 10, canvas.height / 2);
+      return;
+    }
+    const scale = Math.min(canvas.width / mapMeta.width, canvas.height / mapMeta.height);
+    const dw = mapMeta.width * scale, dh = mapMeta.height * scale;
+    const ox = (canvas.width - dw) / 2, oy = (canvas.height - dh) / 2;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(mapImg, ox, oy, dw, dh);
 
-const realsenseImg = document.getElementById("realsense-color-img");
-const realsenseEs = new EventSource("/realsense_data");
-realsenseEs.onmessage = (ev) => {
-  const d = JSON.parse(ev.data);
-  document.getElementById("v-realsense-status").textContent = d.connected ? "élő" : "rosbridge nincs csatlakoztatva";
-  if (d.color_jpg_b64) {
-    realsenseImg.src = "data:image/jpeg;base64," + d.color_jpg_b64;
-  }
-  if (Array.isArray(d.points)) {
-    document.getElementById("v-realsense-points").textContent = d.points.length + " pont";
-    const pos = new Float32Array(d.points.length * 3);
-    d.points.forEach((p, i) => {
-      // RealSense saját (kamera-optikai) koordinátái: x jobbra, y le, z előre —
-      // ugyanúgy robot(x,y,z)->three(x,z,y) leképzést alkalmazunk, mint a
-      // többi szenzornál, a fej-kamera durva, nem kalibrált pozíciójával eltolva.
-      pos[i * 3 + 0] = p[2];
-      pos[i * 3 + 1] = -p[1] + 0.15;
-      pos[i * 3 + 2] = p[0];
+    // Útvonal-lista pontok (script mód) — sárga számozott jelölők.
+    scriptPoints.forEach((p, i) => {
+      const [cx, cy] = worldToCanvas(p.x, p.y);
+      ctx.fillStyle = "#ffd23f";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#05070a";
+      ctx.font = "9px Consolas, monospace";
+      ctx.fillText(String(i + 1), cx - 3, cy + 3);
     });
-    realsenseGeometry.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    realsenseGeometry.attributes.position.needsUpdate = true;
-  } else {
-    document.getElementById("v-realsense-points").textContent = "nincs adat";
-  }
-};
 
-const slamEs = new EventSource("/slam_data");
-slamEs.onmessage = (ev) => {
-  const d = JSON.parse(ev.data);
-  if (d.map && d.map_version !== slamMapVersion) {
-    drawSlamGrid(d.map);
-    slamMapVersion = d.map_version;
+    // Robot élő pozíciója — piros pötty + irány-nyíl.
+    if (robotPose.x !== null && robotPose.y !== null) {
+      const [rcx, rcy] = worldToCanvas(robotPose.x, robotPose.y);
+      ctx.save();
+      ctx.translate(rcx, rcy);
+      ctx.rotate(-robotPose.yaw);
+      ctx.fillStyle = "#ff3b3b";
+      ctx.beginPath();
+      ctx.moveTo(8, 0);
+      ctx.lineTo(-5, 5);
+      ctx.lineTo(-5, -5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
   }
-  drawSlamPanel(d.map, d.pose);
-  const statusEl = document.getElementById("v-slam-status");
-  statusEl.textContent = !d.connected ? "rosbridge nincs csatlakoztatva" : !d.map ? "csatlakozva, várakozás térképre" : d.pose ? "élő" : "térkép kész, pozíció várakozik";
-};
+
+  canvas.addEventListener("click", (e) => {
+    if (!mapMeta) return;
+    if (!armed) {
+      statusEl.textContent = "előbb oldd fel a kézi vezérlést (lakat-gomb)";
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const py = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const [wx, wy] = canvasToWorld(px, py);
+
+    if (mode === "immediate") {
+      fetch("/api/navigate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ x: wx, y: wy }),
+      }).then((r) => r.json()).then((d) => {
+        statusEl.textContent = d.error ? d.error : `célpont: (${wx.toFixed(2)}, ${wy.toFixed(2)})`;
+      });
+    } else {
+      const photoCheckbox = document.getElementById("nav-next-photo");
+      const action = photoCheckbox.checked ? "photo" : null;
+      scriptPoints.push({ x: wx, y: wy, action });
+      photoCheckbox.checked = false;
+      renderWaypointList();
+      redraw();
+    }
+  });
+
+  function renderWaypointList() {
+    listEl.innerHTML = scriptPoints.map((p, i) => `${i + 1}. (${p.x.toFixed(2)}, ${p.y.toFixed(2)})${p.action === "photo" ? " 📷" : ""}`).join("<br>");
+    btnRun.disabled = scriptPoints.length === 0;
+  }
+
+  btnImmediate.addEventListener("click", () => {
+    mode = "immediate";
+    btnImmediate.classList.add("active");
+    btnScript.classList.remove("active");
+    modeEl.textContent = "azonnali";
+  });
+  btnScript.addEventListener("click", () => {
+    mode = "script";
+    btnScript.classList.add("active");
+    btnImmediate.classList.remove("active");
+    modeEl.textContent = "útvonal-lista";
+  });
+  btnRun.addEventListener("click", () => {
+    if (!armed || scriptPoints.length === 0) return;
+    fetch("/api/navigate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ queue: scriptPoints }),
+    }).then((r) => r.json()).then((d) => {
+      statusEl.textContent = d.error ? d.error : `lista indítva (${scriptPoints.length} pont)`;
+    });
+  });
+  btnClear.addEventListener("click", () => {
+    scriptPoints = [];
+    renderWaypointList();
+    redraw();
+    fetch("/api/navigate/cancel", { method: "POST" });
+  });
+
+  document.getElementById("estop-btn").addEventListener("click", () => {
+    fetch("/api/estop", { method: "POST" }).then(() => {
+      statusEl.textContent = "VÉSZLEÁLLÍTVA";
+      scriptPoints = [];
+      renderWaypointList();
+      redraw();
+    });
+  });
+
+  // Állapot-lekérdezés 1 Hz-en — kevésbé kritikus adat, nem éri meg rá
+  // külön SSE-csatornát nyitni a meglévők mellé.
+  const photoListEl = document.getElementById("photo-events-list");
+  let lastPhotoUrl = null;
+  setInterval(() => {
+    fetch("/nav_status").then((r) => r.json()).then((d) => {
+      if (d.target) {
+        statusEl.textContent = `halad: (${d.target.x.toFixed(2)}, ${d.target.y.toFixed(2)}) — ${d.queue_len} hátra`;
+      } else if (d.last_status && d.last_status.type === "reached") {
+        statusEl.textContent = "célba ért";
+      } else if (d.last_status && d.last_status.type === "estop") {
+        statusEl.textContent = "VÉSZLEÁLLÍTVA";
+      } else if (!d.target) {
+        statusEl.textContent = "várakozik";
+      }
+      // Fotó-akció esemény — új képet ad a szerver, amikor egy "photo"
+      // akciójú waypointot elér a navigáció (ld. app.py _capture_photo()).
+      if (d.last_status && d.last_status.photo_url && d.last_status.photo_url !== lastPhotoUrl) {
+        lastPhotoUrl = d.last_status.photo_url;
+        const thumb = document.createElement("img");
+        thumb.src = lastPhotoUrl + "?t=" + Date.now();
+        thumb.style.cssText = "width:70px; height:52px; object-fit:cover; border-radius:3px; border:1px solid var(--accent);";
+        photoListEl.prepend(thumb);
+      }
+    }).catch(() => {});
+  }, 1000);
+
+  window._patrolUpdate = (x, y, yaw, isArmed) => {
+    // A robotPose-t mostantól a /live_map_data adja (élő adat) — itt csak
+    // az armed-jelzőt szinkronizáljuk, hogy a kattintás-kapu naprakész legyen.
+    armed = !!isArmed;
+    redraw();
+  };
+})();
+
+// ---------------------------------------------------------------------
+// Security mód (demo) — 2026-09-04, szimulált "person" detekció, ld.
+// mock_streams.mock_detection(). Holnap reggel a /security_status
+// backend-válasz alakja NEM változik (detected/bbox/confidence), csak a
+// mock_detection() hívás cserélendő valós CV-kimenetre.
+// ---------------------------------------------------------------------
+(function setupSecurityPanel() {
+  const toggleBtn = document.getElementById("security-toggle-btn");
+  const overlay = document.getElementById("security-overlay");
+  const octx = overlay.getContext("2d");
+  const camImg = document.getElementById("cam-feed");
+  const logList = document.getElementById("security-log-list");
+  let active = false;
+  let lastEventT = null;
+
+  function resizeOverlay() {
+    overlay.width = camImg.clientWidth || 220;
+    overlay.height = camImg.clientHeight || 165;
+  }
+  window.addEventListener("resize", resizeOverlay);
+  resizeOverlay();
+
+  toggleBtn.addEventListener("click", () => {
+    active = !active;
+    fetch(active ? "/api/security/start" : "/api/security/stop", { method: "POST" });
+    toggleBtn.style.borderColor = active ? "var(--danger)" : "var(--border)";
+    toggleBtn.style.color = active ? "var(--danger)" : "var(--muted)";
+    if (!active) { octx.clearRect(0, 0, overlay.width, overlay.height); }
+  });
+
+  function drawBox(bbox, confidence) {
+    resizeOverlay();
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+    if (!bbox) return;
+    const [x0, y0, x1, y1] = bbox;
+    const px0 = x0 * overlay.width, py0 = y0 * overlay.height;
+    const pw = (x1 - x0) * overlay.width, ph = (y1 - y0) * overlay.height;
+    octx.strokeStyle = "#ff3b3b";
+    octx.lineWidth = 2;
+    octx.strokeRect(px0, py0, pw, ph);
+    // sci-fi sarok-jelölők
+    const s = 10;
+    octx.beginPath();
+    [[px0, py0, 1, 1], [px0 + pw, py0, -1, 1], [px0, py0 + ph, 1, -1], [px0 + pw, py0 + ph, -1, -1]].forEach(([cx, cy, dx, dy]) => {
+      octx.moveTo(cx, cy + dy * s); octx.lineTo(cx, cy); octx.lineTo(cx + dx * s, cy);
+    });
+    octx.stroke();
+    octx.fillStyle = "#ff3b3b";
+    octx.font = "10px Consolas, monospace";
+    octx.fillText(`[THREAT DETECTED: PERSON — ${Math.round(confidence * 100)}%]`, px0, Math.max(10, py0 - 4));
+  }
+
+  function addLogEntry() {
+    const t = new Date().toLocaleTimeString("hu-HU");
+    const row = document.createElement("div");
+    row.style.color = "#ff3b3b";
+    row.style.animation = "blink 1s ease-in-out 2";
+    row.textContent = `[${t}] INTRUDER DETECTED`;
+    logList.prepend(row);
+    while (logList.children.length > 20) logList.removeChild(logList.lastChild);
+  }
+
+  setInterval(() => {
+    if (!active) return;
+    fetch("/security_status").then((r) => r.json()).then((d) => {
+      drawBox(d.bbox, d.confidence);
+      if (d.last_event && d.last_event.t !== lastEventT) {
+        lastEventT = d.last_event.t;
+        addLogEntry();
+      }
+    }).catch(() => {});
+  }, 1000);
+})();
+
+// ---------------------------------------------------------------------
+// Thermal Vision (demo) — MLX90640 hőkamera, ld. mock_thermal.py. A
+// 32x24-es natív rácsot egy kis offscreen canvas-ra rajzoljuk pixelenként,
+// majd felskálázzuk a látható canvas-ra image-smoothing + CSS blur-rel,
+// hogy ne "kockás", hanem folyamatos hőtérkép-hatást keltsen.
+// ---------------------------------------------------------------------
+(function setupThermalPanel() {
+  const canvas = document.getElementById("thermal-canvas");
+  const ctx = canvas.getContext("2d");
+  const rangeEl = document.getElementById("v-thermal-range");
+  const off = document.createElement("canvas");
+  const octx = off.getContext("2d");
+
+  function tempToColor(v, min, max) {
+    const t = Math.max(0, Math.min(1, (v - min) / Math.max(0.001, max - min)));
+    // kék (hideg) -> lila -> piros -> sárga (forró), egyszerű false-color skála
+    const stops = [
+      [0.00, 20, 20, 90], [0.35, 90, 20, 140], [0.6, 200, 30, 60], [0.85, 240, 120, 20], [1.0, 255, 230, 80],
+    ];
+    for (let i = 1; i < stops.length; i++) {
+      if (t <= stops[i][0]) {
+        const [t0, r0, g0, b0] = stops[i - 1];
+        const [t1, r1, g1, b1] = stops[i];
+        const f = (t - t0) / (t1 - t0 || 1);
+        return [r0 + (r1 - r0) * f, g0 + (g1 - g0) * f, b0 + (b1 - b0) * f];
+      }
+    }
+    return [255, 230, 80];
+  }
+
+  const thermalEs = new EventSource("/api/thermal_stream");
+  thermalEs.onmessage = (ev) => {
+    const d = JSON.parse(ev.data);
+    if (!d.available) {
+      // 2026-09-05: nem szimulált adatra váltunk vissza — a hardveres híd
+      // (ESP32/Arduino I2C->soros) még nincs kész, ezt jelezzük egyértelműen,
+      // dummy-adat helyett.
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#5f7386";
+      ctx.font = "11px Consolas, monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("WAITING FOR HARDWARE BRIDGE...", canvas.width / 2, canvas.height / 2);
+      ctx.textAlign = "left";
+      rangeEl.textContent = "várakozás a hardver-hídra";
+      return;
+    }
+    off.width = d.cols; off.height = d.rows;
+    const img = octx.createImageData(d.cols, d.rows);
+    for (let i = 0; i < d.data.length; i++) {
+      const [r, g, b] = tempToColor(d.data[i], d.min, d.max);
+      img.data[i * 4] = r; img.data[i * 4 + 1] = g; img.data[i * 4 + 2] = b; img.data[i * 4 + 3] = 255;
+    }
+    octx.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+    rangeEl.textContent = `${d.min.toFixed(1)}°C — ${d.max.toFixed(1)}°C`;
+  };
+})();
+
 
 const es = new EventSource("/showcase_data");
 es.onmessage = (ev) => {
   const d = JSON.parse(ev.data);
 
   applyMotorQ(d.motor_q);
-  applyBodyOrientation(d.roll, d.pitch, d.yaw);
+  // 2026-09-05 FIX: az avatár megjelenített yaw-ja mostantól sport_yaw
+  // (SportModeState_ SAJÁT IMU-ja, ugyanaz a forrás, mint amit a
+  // térkép/LiDAR-transzformáció is használ) — korábban a különálló "yaw"
+  // mezőt (LowState_) használta, ami más referenciából jött, ezért az
+  // avatár és a térkép/pontfelhő 90 fokkal egymáshoz képest elforgatva
+  // jelent meg (user élő tesztje mutatta ki).
+  applyBodyOrientation(d.roll, d.pitch, typeof d.sport_yaw === "number" ? d.sport_yaw : d.yaw);
   drawHorizon(d.roll || 0, d.pitch || 0);
   if (Array.isArray(d.motor_q) && Array.isArray(d.motor_tau)) updatePower(d.motor_q, d.motor_tau);
 
@@ -1351,7 +1885,13 @@ es.onmessage = (ev) => {
   document.getElementById("v-pitch").textContent = ((d.pitch ?? 0) * 57.2958).toFixed(1) + "°";
   document.getElementById("v-yaw").textContent = ((d.yaw ?? 0) * 57.2958).toFixed(1) + "°";
 
-  if (d.armed === false && window._showcaseControlSetArmedUI) window._showcaseControlSetArmedUI(false);
+  // 2026-09-05: MINDKÉT irányban szinkronizál a szerver valós állapotával
+  // (korábban csak false-ra forszírozott) — ha több böngészőfül/session van
+  // nyitva egyszerre, vagy a kliens state elszakadt a szervertől, ez mindig
+  // visszaigazítja a UI-t a tényleges armed-értékre, megszüntetve a "villog,
+  // majd magától visszazárol" tünetet.
+  if (typeof d.armed === "boolean" && window._showcaseControlSetArmedUI) window._showcaseControlSetArmedUI(d.armed);
+  if (window._patrolUpdate) window._patrolUpdate(d.position_x, d.position_y, d.sport_yaw, d.armed);
 
   const sdkBadge = document.getElementById("badge-sdk");
   sdkBadge.textContent = "SDK: " + (d.sdk_ready ? "KÉSZ" : "VÁRAKOZIK");

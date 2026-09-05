@@ -32,7 +32,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir "git+https://github.com/unitreerobotics/unitree_sdk2_python.git"
 
 COPY app.py .
+COPY mock_streams.py .
+COPY mock_thermal.py .
 COPY templates/ templates/
+COPY static/ static/
 
 EXPOSE 5002
 
