@@ -1,10 +1,10 @@
 """
-NERO_GO2 — Interaktív SLAM Workbench (Felhasználói Kalibrált Paraméterekkel + Hurokzárás SLAM-mel)
+NERO_GO2 — Interaktív SLAM Workbench (Választott Elsődleges Algoritmus: KISS-ICP Pure LiDAR Odometry)
 Beállítások:
-- Default Gyro Skála: 1.02x
-- Default Yaw Offset: 97.5°
+- Elsődleges Algoritmus: 🚀 KISS-ICP (PRBonn Pure LiDAR Odometry)
+- Default Gyro Skála: 0.99x
+- Default Yaw Offset: 96.0°
 - Default Voxel Méret: 2 cm
-- Hurokzárási Mód (Pose Graph Loop Closure SLAM) beépítve a JS felületbe!
 """
 
 import json
@@ -14,8 +14,71 @@ import sys
 import numpy as np
 from scipy.spatial import cKDTree
 
+from kiss_icp.kiss_icp import KissICP
+from kiss_icp.config import KISSConfig
+import small_gicp
+
 def wrap_angle(a):
     return (a + math.pi) % (2 * math.pi) - math.pi
+
+def compute_pure_lidar_trajectories(selected_frames):
+    config = KISSConfig()
+    config.mapping.voxel_size = 0.15
+    config.data.max_range = 12.0
+    config.data.min_range = 0.35
+    config.data.deskew = False
+    kiss_odo = KissICP(config)
+    
+    kiss_poses = []
+    gicp_poses = []
+    
+    T_gicp = np.eye(4, dtype=np.float64)
+    last_valid_pts = None
+    
+    for fr in selected_frames:
+        pts_list = fr.get("points", [])
+        if not pts_list:
+            kiss_poses.append((0.0, 0.0, 0.0))
+            gicp_poses.append((0.0, 0.0, 0.0))
+            continue
+            
+        pts = np.array(pts_list, dtype=np.float64)[:, :3]
+        dist = np.hypot(pts[:, 0], pts[:, 1])
+        valid = (dist >= 0.35) & (dist <= 12.0) & (pts[:, 2] > -0.6) & (pts[:, 2] < 2.0)
+        valid_pts = pts[valid]
+        
+        if len(valid_pts) < 30:
+            kiss_poses.append(kiss_poses[-1] if kiss_poses else (0.0, 0.0, 0.0))
+            gicp_poses.append(gicp_poses[-1] if gicp_poses else (0.0, 0.0, 0.0))
+            continue
+            
+        # KISS-ICP
+        ts = np.zeros(len(valid_pts), dtype=np.float64)
+        kiss_odo.register_frame(valid_pts, ts)
+        kp = kiss_odo.last_pose
+        kx, ky = float(kp[0, 3]), float(kp[1, 3])
+        kyaw = float(wrap_angle(math.atan2(kp[1, 0], kp[0, 0])))
+        kiss_poses.append((round(kx, 4), round(ky, 4), round(kyaw, 4)))
+        
+        # Small-GICP
+        if last_valid_pts is not None:
+            res = small_gicp.align(
+                last_valid_pts,
+                valid_pts,
+                np.eye(4, dtype=np.float64),
+                registration_type="VGICP",
+                voxel_resolution=0.15,
+                max_correspondence_distance=0.5,
+                max_iterations=20
+            )
+            T_gicp = T_gicp @ res.T_target_source
+            
+        last_valid_pts = valid_pts
+        gx, gy = float(T_gicp[0, 3]), float(T_gicp[1, 3])
+        gyaw = float(wrap_angle(math.atan2(T_gicp[1, 0], T_gicp[0, 0])))
+        gicp_poses.append((round(gx, 4), round(gy, 4), round(gyaw, 4)))
+        
+    return kiss_poses, gicp_poses
 
 def load_dataset_frames(filepath, max_frames=200, pts_per_frame=400):
     if not os.path.exists(filepath):
@@ -30,6 +93,9 @@ def load_dataset_frames(filepath, max_frames=200, pts_per_frame=400):
                 
     step = max(1, len(raw_lines) // max_frames)
     selected_frames = raw_lines[::step][:max_frames]
+    
+    print(f"  -> Számítás: KISS-ICP és Small-GICP tiszta LiDAR trajektóriák ({len(selected_frames)} képkocka)...")
+    kiss_poses, gicp_poses = compute_pure_lidar_trajectories(selected_frames)
     
     etalon_centroids = []
     etalon_tree = None
@@ -144,6 +210,9 @@ def load_dataset_frames(filepath, max_frames=200, pts_per_frame=400):
         if len(etalon_centroids) > 50 and idx % 5 == 0:
             etalon_tree = cKDTree(np.array(etalon_centroids, dtype=np.float32))
 
+        kp = kiss_poses[idx] if idx < len(kiss_poses) else (0.0, 0.0, 0.0)
+        gp = gicp_poses[idx] if idx < len(gicp_poses) else (0.0, 0.0, 0.0)
+
         processed_frames.append({
             "t": round(float(fr.get("t", 0.0) or 0.0), 2),
             "x": round(x_raw, 4),
@@ -152,6 +221,12 @@ def load_dataset_frames(filepath, max_frames=200, pts_per_frame=400):
             "yaw": round(yaw_raw, 4),
             "roll": round(roll, 4),
             "pitch": round(pitch, 4),
+            "kiss_x": kp[0],
+            "kiss_y": kp[1],
+            "kiss_yaw": kp[2],
+            "gicp_x": gp[0],
+            "gicp_y": gp[1],
+            "gicp_yaw": gp[2],
             "icp_dx": round(icp_dx, 4),
             "icp_dy": round(icp_dy, 4),
             "icp_dyaw": round(icp_dyaw, 4),
@@ -172,7 +247,7 @@ def generate_workbench():
     for ds_id, (fname, label) in datasets.items():
         fpath = os.path.join(base_dir, fname)
         if os.path.exists(fpath):
-            print(f"Betöltés & ICP Kiszámítása: {ds_id} ({fname})...")
+            print(f"Betöltés & SLAM/Odometriák Kiszámítása: {ds_id} ({fname})...")
             frames = load_dataset_frames(fpath, max_frames=200, pts_per_frame=400)
             total_pts = sum(len(fr["pts"]) for fr in frames)
             print(f"  -> {len(frames)} képkocka, összesen {total_pts:,} pont betöltve!")
@@ -187,7 +262,7 @@ def generate_workbench():
 <html lang="hu">
 <head>
   <meta charset="UTF-8">
-  <title>NERO GO2 — SLAM Interaktív Paraméter-Hangoló Workbench</title>
+  <title>NERO GO2 — KISS-ICP Pure LiDAR SLAM Workbench</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <style>
@@ -203,15 +278,15 @@ def generate_workbench():
       border: 1px solid #1e293b;
       border-radius: 12px;
       padding: 18px;
-      width: 400px;
+      width: 420px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.6);
       backdrop-filter: blur(8px);
       max-height: 92vh;
       overflow-y: auto;
     }
     
-    h2 { margin: 0 0 4px 0; font-size: 1.1rem; color: #38bdf8; text-transform: uppercase; letter-spacing: 1px; }
-    .subtitle { font-size: 0.8rem; color: #94a3b8; margin-bottom: 14px; }
+    h2 { margin: 0 0 4px 0; font-size: 1.15rem; color: #38bdf8; text-transform: uppercase; letter-spacing: 1px; }
+    .subtitle { font-size: 0.8rem; color: #4ade80; font-weight: 600; margin-bottom: 14px; }
     
     .control-group { margin-bottom: 12px; background: rgba(30, 41, 59, 0.4); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
     .control-label { font-size: 0.82rem; font-weight: 600; color: #cbd5e1; display: flex; justify-content: space-between; margin-bottom: 6px; }
@@ -257,7 +332,7 @@ def generate_workbench():
       padding: 12px;
       background: rgba(15, 23, 42, 0.8);
       border-radius: 8px;
-      border-left: 4px solid #38bdf8;
+      border-left: 4px solid #4ade80;
       font-size: 0.8rem;
     }
     .metric-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
@@ -281,46 +356,32 @@ def generate_workbench():
   <div id="canvas-container"></div>
   
   <div class="panel">
-    <h2>🎛️ SLAM Interaktív Hangoló</h2>
-    <div class="subtitle">Kalibrált kezdőértékek (1.02x Gyro, 97.5° Yaw, 2cm Voxel)</div>
+    <h2>🎛️ SLAM Workbench</h2>
+    <div class="subtitle">✅ Választott Algoritmus: KISS-ICP (PRBonn Pure LiDAR)</div>
     
     <div class="control-group">
-      <div class="control-label">Adatmozaik Adatsor:</div>
+      <div class="control-label">📂 Adatmozaik Adatsor:</div>
       <select id="sel-dataset" onchange="changeDataset()"></select>
     </div>
     
     <div class="control-group">
-      <div class="control-label">🔄 Algoritmus Típusa:</div>
+      <div class="control-label">🔄 Algoritmus / Trajektória Mód:</div>
       <select id="sel-mode" onchange="updateSLAM()">
-        <option value="loop_closure">🔗 Pose Graph Loop Closure SLAM (Ajánlott)</option>
-        <option value="bounded_icp">Szigorúan Korlátozott ICP Scan-to-Map</option>
-        <option value="raw_odo">Nyers Korrigált Odometria (ICP nélkül)</option>
+        <option value="kiss_icp" selected>🚀 KISS-ICP (PRBonn Pure LiDAR Odometry - VÁLASZTOTT)</option>
+        <option value="small_gicp">⚡ Small-GICP (Voxelized GICP Scan-to-Scan)</option>
+        <option value="raw_odo">📐 Nyers Korrigált Odometria (0.99x, 96.0°)</option>
+        <option value="loop_closure">🔗 Pose Graph Loop Closure SLAM</option>
       </select>
     </div>
 
     <div class="control-group">
-      <div class="control-label">🧭 Gyro / Yaw Skála (Kanyarodás): <span class="control-val" id="val-yaw-scale">1.02x</span></div>
-      <input type="range" id="rng-yaw-scale" min="0.50" max="1.50" step="0.01" value="1.02" oninput="updateSLAM()">
+      <div class="control-label">🧭 Gyro / Yaw Skála (Nyers módhoz): <span class="control-val" id="val-yaw-scale">0.99x</span></div>
+      <input type="range" id="rng-yaw-scale" min="0.50" max="1.50" step="0.01" value="0.99" oninput="updateSLAM()">
     </div>
     
     <div class="control-group">
-      <div class="control-label">📐 LiDAR-IMU Yaw Offset: <span class="control-val" id="val-yaw-offset">97.5°</span></div>
-      <input type="range" id="rng-yaw-offset" min="-180" max="180" step="0.5" value="97.5" oninput="updateSLAM()">
-    </div>
-
-    <div class="control-group">
-      <div class="control-label">⚡ ICP Erősség / Súlyozás: <span class="control-val" id="val-icp-weight">100%</span></div>
-      <input type="range" id="rng-icp-weight" min="0" max="200" step="5" value="100" oninput="updateSLAM()">
-    </div>
-    
-    <div class="control-group">
-      <div class="control-label">🛑 Max ICP Forgatási Korlát / Frame: <span class="control-val" id="val-max-rot">1.5°</span></div>
-      <input type="range" id="rng-max-rot" min="0.0" max="8.0" step="0.1" value="1.5" oninput="updateSLAM()">
-    </div>
-
-    <div class="control-group">
-      <div class="control-label">📏 Max ICP Elmozdulás Korlát / Frame: <span class="control-val" id="val-max-trans">15 cm</span></div>
-      <input type="range" id="rng-max-trans" min="0" max="50" step="1" value="15" oninput="updateSLAM()">
+      <div class="control-label">📐 LiDAR-IMU Yaw Offset (Nyers módhoz): <span class="control-val" id="val-yaw-offset">96.0°</span></div>
+      <input type="range" id="rng-yaw-offset" min="-180" max="180" step="0.5" value="96.0" oninput="updateSLAM()">
     </div>
 
     <div class="control-group">
@@ -340,14 +401,14 @@ def generate_workbench():
     <div class="metrics-box">
       <div class="metric-row"><span>Képkockák Pontszáma:</span><b id="m-pts" style="color:#38bdf8;">0 db</b></div>
       <div class="metric-row"><span>Egyedi Voxelek a Térképen:</span><b id="m-vox" style="color:#4ade80;">0 db</b></div>
-      <div class="metric-row"><span>Átlagos Illesztési Korrekció:</span><b id="m-corr" style="color:#fbbf24;">0.0 cm</b></div>
+      <div class="metric-row"><span>Aktív Algoritmus Mód:</span><b id="m-mode" style="color:#4ade80;">KISS-ICP Pure LiDAR</b></div>
       <div class="metric-row"><span>JS Számítási Idő:</span><b id="m-time" style="color:#a78bfa;">0 ms</b></div>
     </div>
   </div>
   
   <div class="legend">
     <div class="legend-item"><div class="legend-color" style="background:#ef4444;"></div> Piros: Nyers Odometria Trajektória</div>
-    <div class="legend-item"><div class="legend-color" style="background:#22c55e;"></div> Zöld: Korrigált SLAM Trajektória</div>
+    <div class="legend-item"><div class="legend-color" style="background:#22c55e;"></div> Zöld: Választott KISS-ICP Trajektória</div>
     <div class="legend-item"><div class="legend-color" style="background:#38bdf8;"></div> Kék pontok: 3D Voxel Térkép (Falak)</div>
   </div>
 
@@ -355,7 +416,7 @@ def generate_workbench():
     const DATASETS = __DATASETS_JSON__;
 
     let scene, camera, renderer, controls;
-    let pointCloudMesh, rawTrajectoryLine, slamTrajectoryLine, robotMarker;
+    let pointCloudMesh, rawTrajectoryLine, activeTrajectoryLine, robotMarker;
     let currentDatasetKey = "walk_kicsi";
     let isPlaying = false;
     let playInterval = null;
@@ -387,9 +448,9 @@ def generate_workbench():
       rawTrajectoryLine = new THREE.Line(rawGeo, new THREE.LineBasicMaterial({ color: 0xef4444, linewidth: 2 }));
       scene.add(rawTrajectoryLine);
 
-      const slamGeo = new THREE.BufferGeometry();
-      slamTrajectoryLine = new THREE.Line(slamGeo, new THREE.LineBasicMaterial({ color: 0x22c55e, linewidth: 3 }));
-      scene.add(slamTrajectoryLine);
+      const activeGeo = new THREE.BufferGeometry();
+      activeTrajectoryLine = new THREE.Line(activeGeo, new THREE.LineBasicMaterial({ color: 0x22c55e, linewidth: 3 }));
+      scene.add(activeTrajectoryLine);
 
       // Robot Jelölő
       const robGeo = new THREE.ConeGeometry(0.25, 0.6, 8);
@@ -435,22 +496,19 @@ def generate_workbench():
       const yawOffsetDeg = parseFloat(document.getElementById("rng-yaw-offset").value);
       const yawOffsetRad = yawOffsetDeg * Math.PI / 180.0;
       const mode = document.getElementById("sel-mode").value;
-      const icpWeightPct = parseFloat(document.getElementById("rng-icp-weight").value);
-      const icpWeight = (mode === "raw_odo") ? 0.0 : (icpWeightPct / 100.0);
-      const maxRotDeg = parseFloat(document.getElementById("rng-max-rot").value);
-      const maxRotRad = maxRotDeg * Math.PI / 180.0;
-      const maxTransCm = parseFloat(document.getElementById("rng-max-trans").value);
-      const maxTransM = maxTransCm / 100.0;
       const voxelCm = parseFloat(document.getElementById("rng-voxel-size").value);
       const voxelM = voxelCm / 100.0;
       const maxFrameIdx = parseInt(document.getElementById("rng-frame-idx").value);
 
       document.getElementById("val-yaw-scale").innerText = yawScale.toFixed(2) + "x";
       document.getElementById("val-yaw-offset").innerText = yawOffsetDeg.toFixed(1) + "°";
-      document.getElementById("val-icp-weight").innerText = (mode === "raw_odo" ? "0%" : icpWeightPct + "%");
-      document.getElementById("val-max-rot").innerText = maxRotDeg.toFixed(1) + "°";
-      document.getElementById("val-max-trans").innerText = maxTransCm + " cm";
       document.getElementById("val-voxel-size").innerText = voxelCm + " cm";
+
+      let modeText = "🚀 KISS-ICP Pure LiDAR (VÁLASZTOTT)";
+      if (mode === "small_gicp") modeText = "Small-GICP (VGICP)";
+      else if (mode === "raw_odo") modeText = "Nyers Korrigált Odometria";
+      else if (mode === "loop_closure") modeText = "Pose Graph Loop Closure";
+      document.getElementById("m-mode").innerText = modeText;
 
       const frames = DATASETS[currentDatasetKey].frames;
       if (!frames || frames.length === 0) return;
@@ -459,19 +517,18 @@ def generate_workbench():
       document.getElementById("val-frame-idx").innerText = activeFrames.length + " / " + frames.length;
 
       const rawPoses = [];
-      const slamPoses = [];
+      const activePoses = [];
       const mapVoxels = new Map();
 
-      let totalCorrDist = 0;
       let totalPtsInMap = 0;
 
       for (let i = 0; i < activeFrames.length; i++) {
         const fr = activeFrames[i];
         
+        // 1. Raw odometry with sliders
         if (i === 0) {
           const initYaw = fr.yaw * yawScale + yawOffsetRad;
           rawPoses.push([fr.x, fr.y, initYaw]);
-          slamPoses.push([fr.x, fr.y, initYaw]);
         } else {
           const prevFr = activeFrames[i - 1];
           const rawYawPrev = prevFr.yaw * yawScale + yawOffsetRad;
@@ -491,54 +548,44 @@ def generate_workbench():
           const rawNextX = rawLast[0] + Math.cos(rawLast[2]) * dxBody - Math.sin(rawLast[2]) * dyBody;
           const rawNextY = rawLast[1] + Math.sin(rawLast[2]) * dxBody + Math.cos(rawLast[2]) * dyBody;
           rawPoses.push([rawNextX, rawNextY, rawNextYaw]);
+        }
 
-          const slamLast = slamPoses[slamPoses.length - 1];
-          let predYaw = wrapAngle(slamLast[2] + dyawRaw);
-          let predX = slamLast[0] + Math.cos(slamLast[2]) * dxBody - Math.sin(slamLast[2]) * dyBody;
-          let predY = slamLast[1] + Math.sin(slamLast[2]) * dxBody + Math.cos(slamLast[2]) * dyBody;
-
-          if (icpWeight > 0.001) {
-            let rawDx = (fr.icp_dx || 0.0) * icpWeight;
-            let rawDy = (fr.icp_dy || 0.0) * icpWeight;
-            let rawDyaw = (fr.icp_dyaw || 0.0) * icpWeight;
-
-            let corrX = Math.max(-maxTransM, Math.min(maxTransM, rawDx));
-            let corrY = Math.max(-maxTransM, Math.min(maxTransM, rawDy));
-            let corrYaw = Math.max(-maxRotRad, Math.min(maxRotRad, rawDyaw));
-
-            predX += corrX;
-            predY += corrY;
-            predYaw = wrapAngle(predYaw + corrYaw);
-            totalCorrDist += Math.hypot(corrX, corrY);
-          }
-
-          slamPoses.push([predX, predY, predYaw]);
+        // 2. Select pose based on chosen algorithm mode
+        if (mode === "kiss_icp") {
+          activePoses.push([fr.kiss_x || 0.0, fr.kiss_y || 0.0, fr.kiss_yaw || 0.0]);
+        } else if (mode === "small_gicp") {
+          activePoses.push([fr.gicp_x || 0.0, fr.gicp_y || 0.0, fr.gicp_yaw || 0.0]);
+        } else if (mode === "loop_closure") {
+          activePoses.push([rawPoses[i][0] + (fr.icp_dx || 0.0), rawPoses[i][1] + (fr.icp_dy || 0.0), wrapAngle(rawPoses[i][2] + (fr.icp_dyaw || 0.0))]);
+        } else {
+          // raw_odo
+          activePoses.push([rawPoses[i][0], rawPoses[i][1], rawPoses[i][2]]);
         }
       }
 
-      // If mode is Pose Graph Loop Closure SLAM, optimize the active trajectory poses backwards!
-      if (mode === "loop_closure" && slamPoses.length > 30) {
-        const pStart = slamPoses[0];
-        const pEnd = slamPoses[slamPoses.length - 1];
+      // Loop Closure backward optimization if loop closure mode selected
+      if (mode === "loop_closure" && activePoses.length > 30) {
+        const pStart = activePoses[0];
+        const pEnd = activePoses[activePoses.length - 1];
         const distLoop = Math.hypot(pStart[0] - pEnd[0], pStart[1] - pEnd[1]);
         if (distLoop < 1.5) {
           const errX = pStart[0] - pEnd[0];
           const errY = pStart[1] - pEnd[1];
           const errYaw = wrapAngle(pStart[2] - pEnd[2]);
-          const N = slamPoses.length;
+          const N = activePoses.length;
           for (let k = 1; k < N; k++) {
             const alpha = k / parseFloat(N);
-            slamPoses[k][0] += alpha * errX;
-            slamPoses[k][1] += alpha * errY;
-            slamPoses[k][2] = wrapAngle(slamPoses[k][2] + alpha * errYaw);
+            activePoses[k][0] += alpha * errX;
+            activePoses[k][1] += alpha * errY;
+            activePoses[k][2] = wrapAngle(activePoses[k][2] + alpha * errYaw);
           }
         }
       }
 
-      // Rebuild Voxel Map from Optimized SLAM Poses
+      // Rebuild Voxel Map from Active Trajectory Poses
       for (let i = 0; i < activeFrames.length; i++) {
         const fr = activeFrames[i];
-        const sPose = slamPoses[i];
+        const sPose = activePoses[i];
         const cosY = Math.cos(sPose[2]);
         const sinY = Math.sin(sPose[2]);
         const roll = fr.roll || 0, pitch = fr.pitch || 0;
@@ -578,14 +625,14 @@ def generate_workbench():
       rawTrajectoryLine.geometry.setAttribute("position", new THREE.Float32BufferAttribute(rawPts, 3));
       rawTrajectoryLine.geometry.computeBoundingSphere();
 
-      const slamPts = [];
-      for (let p of slamPoses) slamPts.push(p[0], p[1], 0.08);
-      slamTrajectoryLine.geometry.setAttribute("position", new THREE.Float32BufferAttribute(slamPts, 3));
-      slamTrajectoryLine.geometry.computeBoundingSphere();
+      const activePts = [];
+      for (let p of activePoses) activePts.push(p[0], p[1], 0.08);
+      activeTrajectoryLine.geometry.setAttribute("position", new THREE.Float32BufferAttribute(activePts, 3));
+      activeTrajectoryLine.geometry.computeBoundingSphere();
 
-      const lastSlam = slamPoses[slamPoses.length - 1];
-      robotMarker.position.set(lastSlam[0], lastSlam[1], 0.15);
-      robotMarker.rotation.z = lastSlam[2];
+      const lastActive = activePoses[activePoses.length - 1];
+      robotMarker.position.set(lastActive[0], lastActive[1], 0.15);
+      robotMarker.rotation.z = lastActive[2];
 
       if (pointCloudMesh) scene.remove(pointCloudMesh);
       const voxelArr = Array.from(mapVoxels.values());
@@ -617,7 +664,6 @@ def generate_workbench():
       const dt = Math.round(performance.now() - t0);
       document.getElementById("m-pts").innerText = totalPtsInMap.toLocaleString() + " db";
       document.getElementById("m-vox").innerText = mapVoxels.size.toLocaleString() + " db";
-      document.getElementById("m-corr").innerText = (totalCorrDist / Math.max(1, activeFrames.length) * 100).toFixed(1) + " cm";
       document.getElementById("m-time").innerText = dt + " ms";
     }
 
@@ -652,12 +698,9 @@ def generate_workbench():
     }
 
     function resetSliders() {
-      document.getElementById("rng-yaw-scale").value = 1.02;
-      document.getElementById("rng-yaw-offset").value = 97.5;
-      document.getElementById("sel-mode").value = "loop_closure";
-      document.getElementById("rng-icp-weight").value = 100;
-      document.getElementById("rng-max-rot").value = 1.5;
-      document.getElementById("rng-max-trans").value = 15;
+      document.getElementById("rng-yaw-scale").value = 0.99;
+      document.getElementById("rng-yaw-offset").value = 96.0;
+      document.getElementById("sel-mode").value = "kiss_icp";
       document.getElementById("rng-voxel-size").value = 2;
       updateSLAM();
     }
