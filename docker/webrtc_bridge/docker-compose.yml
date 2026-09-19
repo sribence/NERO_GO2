@@ -12,7 +12,7 @@ services:
     container_name: nero_go2_webrtc_bridge
     network_mode: host
     environment:
-      - UNITREE_ROBOT_IP=192.168.123.18
-      # - UNITREE_AES_128_KEY=  # csak firmware >= 1.1.15 esetén kell, ld. README
+      - UNITREE_ROBOT_IP=192.168.123.161
+      - UNITREE_AES_128_KEY=${UNITREE_AES_128_KEY}
     restart: "no"
     # Flask port: 5001 (host network miatt nincs külön ports: mapping)

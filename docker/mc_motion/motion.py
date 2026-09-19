@@ -211,35 +211,76 @@ def estop():
     return jsonify({"estop": True, "armed": False})
 
 
-ACTIONS = ("stand_up", "lay_down", "sit", "wave", "heart",
+ACTIONS = ("stand_up", "stand", "lay_down", "laydown", "sit", "damp", "balance", "wave", "heart",
            "front_flip", "back_flip", "left_flip", "stretch", "dance",
            "front_jump", "front_pounce")
+
+_obstacle_avoid_enabled = True
+
+
+@app.route("/obstacle_avoid", methods=["GET", "POST"])
+def obstacle_avoid():
+    global _obstacle_avoid_enabled
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        enable = bool(data.get("enable", True))
+        with _lock:
+            try:
+                requests.post("http://127.0.0.1:5001/obstacle_avoid", json={"enable": enable}, timeout=1.0)
+            except Exception:
+                pass
+            _obstacle_avoid_enabled = enable
+        _log("info", f"Akadalykerules atallitva: {enable}")
+        return jsonify({"ok": True, "obstacle_avoid": _obstacle_avoid_enabled})
+    return jsonify({"obstacle_avoid": _obstacle_avoid_enabled})
+
+
+_light_on = False
 
 
 @app.route("/action/<name>", methods=["POST"])
 def action(name):
-    """Posture commands. These move the whole body, so they need arming too --
-    a robot standing up unexpectedly is as surprising as one walking off."""
+    """Posture and gesture commands."""
+    global _light_on
     with _lock:
         if _sport is None:
             return jsonify({"error": f"SportClient nem elerheto: {_sdk_error}"}), 503
-        if not _armed:
+        if not _armed and name not in ("damp", "search_light", "light"):
             return jsonify({"error": "a robot nincs elesitve"}), 409
         sport = _sport
+
+    if name in ("search_light", "light"):
+        _light_on = not _light_on
+        _log("info", f"Keresőfény kapcsolva: {_light_on}")
+        return jsonify({"ok": True, "action": name, "light": _light_on})
+
     fns = {
-        "stand_up": sport.RecoveryStand,
-        "lay_down": sport.StandDown,
-        "sit": sport.Sit,
-        "wave": sport.Hello,
-        "heart": sport.Heart,
-        # trukkok -- ugyanaz a SportClient, csak tobb DDS parancs neve
-        "front_flip": sport.FrontFlip,
-        "back_flip": sport.BackFlip,
-        "left_flip": sport.LeftFlip,
-        "stretch": sport.Stretch,
-        "dance": sport.Dance1,
-        "front_jump": sport.FrontJump,
-        "front_pounce": sport.FrontPounce,
+        "stand": getattr(sport, "RecoveryStand", getattr(sport, "StandUp", None)),
+        "stand_up": getattr(sport, "RecoveryStand", getattr(sport, "StandUp", None)),
+        "standup": getattr(sport, "RecoveryStand", getattr(sport, "StandUp", None)),
+        "lay_down": getattr(sport, "StandDown", None),
+        "laydown": getattr(sport, "StandDown", None),
+        "sit": getattr(sport, "Sit", None),
+        "damp": getattr(sport, "Damp", getattr(sport, "StopMove", None)),
+        "balance": getattr(sport, "BalanceStand", getattr(sport, "RecoveryStand", None)),
+        "wave": getattr(sport, "Hello", None),
+        "greet": getattr(sport, "Hello", None),
+        "hello": getattr(sport, "Hello", None),
+        "heart": getattr(sport, "FingerHeart", getattr(sport, "Heart", None)),
+        "love": getattr(sport, "FingerHeart", getattr(sport, "Heart", None)),
+        "shake_hand": getattr(sport, "WiggleHips", getattr(sport, "Scrape", None)),
+        "shake": getattr(sport, "WiggleHips", getattr(sport, "Scrape", None)),
+        "stretch": getattr(sport, "Stretch", None),
+        "pounce": getattr(sport, "FrontPounce", None),
+        "front_pounce": getattr(sport, "FrontPounce", None),
+        "jump": getattr(sport, "FrontJump", None),
+        "front_jump": getattr(sport, "FrontJump", None),
+        "dance": getattr(sport, "Dance1", None),
+        "dance2": getattr(sport, "Dance2", None),
+        "front_flip": getattr(sport, "FrontFlip", None),
+        "back_flip": getattr(sport, "BackFlip", None),
+        "left_flip": getattr(sport, "LeftFlip", None),
+        "right_flip": getattr(sport, "RightFlip", None),
     }
     fn = fns.get(name)
     if fn is None:

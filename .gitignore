@@ -8,3 +8,8 @@ docker/web_dashboard/cyclonedds_home/
 # Python bytecode cache
 __pycache__/
 *.pyc
+
+# Environment files containing secrets
+.env
+*.env
+!.env.example

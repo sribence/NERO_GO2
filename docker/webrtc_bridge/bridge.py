@@ -45,7 +45,10 @@ from unitree_webrtc_connect import (
     LocalSignalingPortError,
 )
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s %(message)s")
+logging.getLogger("unitree_webrtc_connect").setLevel(logging.WARNING)
+logging.getLogger("aiortc").setLevel(logging.WARNING)
+logging.getLogger("aioice").setLevel(logging.WARNING)
 logger = logging.getLogger("nero_go2.webrtc_bridge")
 
 app = Flask(__name__)

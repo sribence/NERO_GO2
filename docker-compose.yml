@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.3'
 
 services:
   # Hardware Bridge Layer
@@ -6,7 +6,10 @@ services:
     build:
       context: ./src/go2-hardware-bridge/webrtc_bridge
     network_mode: host
+    environment:
+      - UNITREE_ROBOT_IP=192.168.123.161
     restart: unless-stopped
+
 
   # GUI & Visualization Layer
   web_dashboard:
@@ -16,6 +19,29 @@ services:
       - "8080:8080"
     restart: unless-stopped
 
+  go2_console:
+    build:
+      context: ./src/go2-gui-visualization/go2-console
+    network_mode: host
+    environment:
+      - CONSOLE_BACKEND=live
+      - CORE_URL=http://127.0.0.1:9101
+      - MOTION_URL=http://127.0.0.1:9102
+      - AUDIO_URL=http://127.0.0.1:9107
+    restart: unless-stopped
+
+  # Audio Service
+  mc_audio:
+    build:
+      context: ./src/go2-brain-logic/mission_control
+      dockerfile: audio/Dockerfile
+    network_mode: host
+    devices:
+      - "/dev/snd:/dev/snd"
+    restart: unless-stopped
+
+
+
   # Brain & Autonomy Layer
   mission_control:
     build:
@@ -23,3 +49,4 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
+
