@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  # Hardware Bridge Layer
+  webrtc_bridge:
+    build:
+      context: ./src/go2-hardware-bridge/webrtc_bridge
+    network_mode: host
+    restart: unless-stopped
+
+  # GUI & Visualization Layer
+  web_dashboard:
+    build:
+      context: ./src/go2-gui-visualization/web_dashboard
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  # Brain & Autonomy Layer
+  mission_control:
+    build:
+      context: ./src/go2-brain-logic/mission_control
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

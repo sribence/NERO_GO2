@@ -1,0 +1,11 @@
+[submodule "src/go2-hardware-bridge"]
+	path = src/go2-hardware-bridge
+	url = https://github.com/sribence/go2-hardware-bridge.git
+
+[submodule "src/go2-gui-visualization"]
+	path = src/go2-gui-visualization
+	url = https://github.com/sribence/go2-gui-visualization.git
+
+[submodule "src/go2-brain-logic"]
+	path = src/go2-brain-logic
+	url = https://github.com/sribence/go2-brain-logic.git
