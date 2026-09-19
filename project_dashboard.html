@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<title>NERO GO2 (dev) — Mission Control Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/vis-network.min.js"></script>
+<style>
+:root{
+  --bg:#0a0e14; --panel:#111722; --panel2:#161d2b; --border:#22304a;
+  --text:#dbe4f0; --dim:#7c8aa5; --accent:#ff9d3d; --accent2:#7c5cff;
+  --ok:#33d17a; --warn:#ffb545; --danger:#ff5f6d;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0; background:radial-gradient(circle at 20% 0%, #2a1608 0%, var(--bg) 55%);
+  color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh;
+}
+header{
+  padding:22px 32px 14px; border-bottom:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;
+}
+header h1{margin:0; font-size:22px; letter-spacing:1px; color:#fff;}
+header h1 span{color:var(--accent);}
+header .sub{color:var(--dim); font-size:13px;}
+.badge{
+  display:inline-block; padding:2px 9px; border-radius:5px; font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:0.5px; margin-left:8px; vertical-align:middle;
+}
+.badge.fork{background:rgba(255,157,61,0.15); color:var(--accent); border:1px solid rgba(255,157,61,0.4);}
+main{padding:24px 32px 60px; display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+.panel{
+  background:linear-gradient(180deg,var(--panel),var(--panel2));
+  border:1px solid var(--border); border-radius:10px; padding:18px 20px;
+  box-shadow:0 0 0 1px rgba(255,157,61,0.02), 0 8px 24px -12px rgba(0,0,0,0.6);
+}
+.panel h2{
+  margin:0 0 14px; font-size:14px; text-transform:uppercase; letter-spacing:1.5px;
+  color:var(--accent); border-bottom:1px solid var(--border); padding-bottom:10px;
+}
+.full{grid-column:1 / -1;}
+ul.status{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+ul.status li{
+  display:flex; align-items:flex-start; gap:10px; font-size:13px; line-height:1.4;
+  padding:8px 10px; border-radius:6px; background:rgba(255,255,255,0.02);
+}
+.dot{width:9px; height:9px; border-radius:50%; margin-top:4px; flex:0 0 auto;}
+.dot.done{background:var(--ok); box-shadow:0 0 8px var(--ok);}
+.dot.wip{background:var(--warn); box-shadow:0 0 8px var(--warn);}
+.dot.blocked{background:var(--danger); box-shadow:0 0 8px var(--danger);}
+.tag{font-size:10px; padding:1px 6px; border-radius:4px; margin-left:auto; text-transform:uppercase; letter-spacing:0.5px; flex:0 0 auto;}
+.tag.done{background:rgba(51,209,122,0.15); color:var(--ok); border:1px solid rgba(51,209,122,0.4);}
+.tag.wip{background:rgba(255,181,69,0.15); color:var(--warn); border:1px solid rgba(255,181,69,0.4);}
+.tag.blocked{background:rgba(255,95,109,0.15); color:var(--danger); border:1px solid rgba(255,95,109,0.4);}
+#graph{width:100%; height:560px; border:1px solid var(--border); border-radius:8px; background:#0c1119;}
+.legend{display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:11px; color:var(--dim);}
+.legend span{display:inline-flex; align-items:center; gap:6px;}
+.legend i{width:10px; height:10px; border-radius:50%; display:inline-block;}
+.controls{display:flex; gap:10px; margin-bottom:12px; flex-wrap:wrap;}
+.controls select, .controls input{
+  background:var(--panel); border:1px solid var(--border); color:var(--text);
+  padding:6px 10px; border-radius:6px; font-size:12px;
+}
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th{
+  text-align:left; color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase;
+  letter-spacing:0.5px; padding:8px 10px; border-bottom:1px solid var(--border); cursor:pointer; user-select:none;
+}
+th:hover{color:var(--accent);}
+td{padding:9px 10px; border-bottom:1px solid rgba(255,255,255,0.05); vertical-align:top;}
+tr:hover td{background:rgba(255,255,255,0.03);}
+.prio{padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; white-space:nowrap;}
+.prio.p0{background:rgba(255,95,109,0.15); color:var(--danger); border:1px solid rgba(255,95,109,0.4);}
+.prio.p1{background:rgba(255,181,69,0.15); color:var(--warn); border:1px solid rgba(255,181,69,0.4);}
+.prio.blocker{background:rgba(124,92,255,0.15); color:var(--accent2); border:1px solid rgba(124,92,255,0.4);}
+.pillargrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px;}
+.pill{
+  background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px;
+  padding:10px 12px; font-size:12px;
+}
+.pill .name{font-weight:600; color:#fff; display:flex; justify-content:space-between; align-items:center;}
+.pill .port{color:var(--dim); font-size:11px; margin-top:2px;}
+.pill .st{font-size:10px; padding:1px 6px; border-radius:4px;}
+footer{text-align:center; color:var(--dim); font-size:11px; padding:20px; border-top:1px solid var(--border);}
+@media(max-width:900px){main{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>NERO <span>GO2</span> (dev) — Mission Control<span class="badge fork">elágazott klón</span></h1>
+  <div class="sub">C:\dev\NERO_GO2 · origin/main-től 5 commit-tal előrébb, push nélkül · Jetson Orin 192.168.123.18</div>
+</header>
+
+<main>
+
+  <div class="panel">
+    <h2>Repó státusz</h2>
+    <ul class="status">
+      <li><span class="dot done"></span>Klón helye: <code>C:\dev\NERO_GO2</code> — HEAD <code>5715152</code> (2026-09-11)<span class="tag done">done</span></li>
+      <li><span class="dot blocked"></span>Nincs push-olva GitHub-ra — <code>origin/main</code> a közös ős pontnál (<code>908a031</code>) áll<span class="tag blocked">unpushed</span></li>
+      <li><span class="dot wip"></span>Testvér-klón <code>C:\Users\user\NERO_GO2</code> ugyanattól a pontról ágazott el, más irányba (SLAM/docs), 4 commit-tal előrébb<span class="tag wip">divergent</span></li>
+      <li><span class="dot done"></span>Ez a klón a <code>mission-control/</code> ágat viszi tovább — a másikban ez a mappa nincs meg<span class="tag done">unique</span></li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h2>mission-control — 9 pillér státusza</h2>
+    <div class="pillargrid">
+      <div class="pill"><div class="name">core<span class="st" style="background:rgba(51,209,122,0.15);color:#33d17a">9101</span></div><div class="port">robot-állapot proxy, READONLY zár</div></div>
+      <div class="pill"><div class="name">mapping<span class="st" style="background:rgba(51,209,122,0.15);color:#33d17a">9102</span></div><div class="port">frontier-exploration</div></div>
+      <div class="pill"><div class="name">navigation<span class="st" style="background:rgba(51,209,122,0.15);color:#33d17a">9103</span></div><div class="port">A*, lépcső-heurisztika javítva</div></div>
+      <div class="pill"><div class="name">orchestration<span class="st" style="background:rgba(51,209,122,0.15);color:#33d17a">9104</span></div><div class="port">task-lánc végrehajtó</div></div>
+      <div class="pill"><div class="name">sensors<span class="st" style="background:rgba(51,209,122,0.15);color:#33d17a">9105</span></div><div class="port">fotó/szenzor lekérdezés</div></div>
+      <div class="pill"><div class="name">multicam<span class="st" style="background:rgba(51,209,122,0.15);color:#33d17a">9106</span></div><div class="port">multi-kamera forrás</div></div>
+      <div class="pill"><div class="name">audio<span class="st" style="background:rgba(51,209,122,0.15);color:#33d17a">9107</span></div><div class="port">hangvisszajelzés</div></div>
+      <div class="pill"><div class="name">blackbox<span class="st" style="background:rgba(51,209,122,0.15);color:#33d17a">9108</span></div><div class="port">JSONL feketedoboz-log</div></div>
+      <div class="pill"><div class="name">remote<span class="st" style="background:rgba(255,181,69,0.15);color:#ffb545">—</span></div><div class="port">log_shipper, Tailscale</div></div>
+      <div class="pill"><div class="name">digital-twin<span class="st" style="background:rgba(51,209,122,0.15);color:#33d17a">9110</span></div><div class="port">3D böngésző-felület</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Kész / élesben igazolt</h2>
+    <ul class="status">
+      <li><span class="dot done"></span>Mind a 9 pillér tesztelve <code>ROBOT_BACKEND=mock</code> mellett, plain Python-folyamatként<span class="tag done">done</span></li>
+      <li><span class="dot done"></span>2026-09-10 független audit: 12 P0 hiba, mind a 12 javítva + 20 regressziós teszt (<code>pytest tests -q</code>)<span class="tag done">done</span></li>
+      <li><span class="dot done"></span><code>mc_sensor_hub</code> read-only szenzor-aggregátor éles kapcsolattal a dokkon (2026-09-11 óta)<span class="tag done">done</span></li>
+      <li><span class="dot done"></span>RealSense szín + mélység bekötve rosbridge-en keresztül<span class="tag done">done</span></li>
+      <li><span class="dot done"></span>Bináris pontfelhő-végpont a hubon + <code>mc_motion</code> szolgáltatás<span class="tag done">done</span></li>
+      <li><span class="dot done"></span><code>demo.py</code> — felület megnézhető robot és Docker nélkül, LAN-on telefonról is<span class="tag done">done</span></li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h2>Blokkolt / nyitott kockázat</h2>
+    <ul class="status">
+      <li><span class="dot blocked"></span><code>docker compose up --build</code> (mind a 9 konténer) blokkolva — WSL2/"Virtual Machine Platform" nincs bekapcsolva ezen a gépen<span class="tag blocked">blocked</span></li>
+      <li><span class="dot wip"></span><code>ROBOT_BACKEND=live</code> teljes út még sosem futott valódi roboton (csak <code>mc_sensor_hub</code> read-only)<span class="tag wip">wip</span></li>
+      <li><span class="dot wip"></span>2 telemetria-mezőnév ELLENŐRIZENDŐ élő menet előtt (<code>LiveRobotClient</code>)<span class="tag wip">wip</span></li>
+      <li><span class="dot wip"></span><code>rosbridge_suite</code> build kész, de <code>network_mode: host</code>-on SIGSEGV — megoldatlan<span class="tag wip">wip</span></li>
+    </ul>
+  </div>
+
+  <div class="panel full">
+    <h2>Függőségi gráf — mission-control architektúra</h2>
+    <div class="legend">
+      <span><i style="background:#ff9d3d"></i>core / robot-kliens</span>
+      <span><i style="background:#7c5cff"></i>pillér (HTTP szolgáltatás)</span>
+      <span><i style="background:#33d17a"></i>UI / felület</span>
+      <span><i style="background:#ffb545"></i>szenzor / hardver</span>
+      <span><i style="background:#ff5f6d"></i>blokkolt / nyitott hiba</span>
+      <span><i style="background:#5c7ae0"></i>dokumentáció</span>
+    </div>
+    <div id="graph"></div>
+  </div>
+
+  <div class="panel full">
+    <h2>P0 hibalista (audit 2026-09-10) — mind javítva</h2>
+    <div class="controls">
+      <select id="filterPrio">
+        <option value="all">Minden szint</option>
+        <option value="p0">P0 kritikus</option>
+        <option value="p1">P1 súlyos</option>
+        <option value="blocker">Blokkoló (env)</option>
+      </select>
+      <input id="search" type="text" placeholder="Keresés...">
+    </div>
+    <table id="todoTable">
+      <thead>
+        <tr>
+          <th data-key="prio">Szint</th>
+          <th data-key="title">Hiba / feladat</th>
+          <th data-key="detail">Részlet</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+</main>
+
+<footer>NERO GO2 (dev fork) · C:\dev\NERO_GO2\project_dashboard.html · generálva Claude Code Caveman módban</footer>
+
+<script>
+const TODOS = [
+  {prio:'p0', title:'P0-1: lépcső-heurisztika kikapcsolta az akadálykerülést', detail:'Minden 1 m alatti akadályt "lépcsőnek" minősített astar.py:71-73 — javítva.'},
+  {prio:'p0', title:'P0-2: LiveRobotClient kitalált telemetria-mezőnevek', detail:'Pozíció és akku örökre 0 élesben — mezőnevek javítva, 2 még ellenőrizendő élő roboton.'},
+  {prio:'p0', title:'P0-3: get_lidar_points() AttributeError élesben', detail:'Formátum-eltérés a webrtc_bridge API és a várt struktúra között — javítva.'},
+  {prio:'p0', title:'P0-4: kapcsolatvesztés valós adatnak álcázta magát', detail:'Navigáció 30 mp-ig teljes sebességgel tolatott — javítva.'},
+  {prio:'p0', title:'P0-5: nincs sebesség- és parancsvalidáció', detail:'Tetszőleges érték jutott a SportClient.Move()-ba — validáció hozzáadva.'},
+  {prio:'p0', title:'P0-6: nincs watchdog / deadman', detail:'Utolsó parancs örökké érvényben maradt — watchdog hozzáadva.'},
+  {prio:'p0', title:'P0-7: nulla hitelesítés, /_debug/arm élesben is nyitva', detail:'MC_API_TOKEN hitelesítés hozzáadva minden állapotváltó végponthoz (kivéve /estop).'},
+  {prio:'p0', title:'P0-8: SSRF a task-motorban', detail:'Task-lépés tetszőleges URL-t hívott, névtelen MQTT-ből is vezérelhetően — javítva.'},
+  {prio:'p0', title:'P0-9: szálszivárgás minden kamerakép-lekérésnél', detail:'Új robot-kliens + új szál minden hívásnál — javítva.'},
+  {prio:'p0', title:'P0-10: nincs vészleállítás a kezelőfelületen', detail:'Egy véletlen kattintás azonnal elindította a robotot — megerősítés + E-stop hozzáadva.'},
+  {prio:'p0', title:'P0-11: nincs élő akadályfigyelés vezetés közben', detail:'Navigáció sosem tervezett újra menet közben — javítva.'},
+  {prio:'p0', title:'P0-12: közelség-riasztás fantomfunkció', detail:'Feliratkozó volt, publikáló nem — javítva.'},
+  {prio:'blocker', title:'Docker Compose teljes stack (9 konténer) blokkolva', detail:'WSL2 / "Virtual Machine Platform" Windows-funkció nincs bekapcsolva ezen a gépen, admin+restart kell.'},
+  {prio:'p1', title:'rosbridge_suite SIGSEGV network_mode: host alatt', detail:'Build kész, futáskor összeomlik — megoldatlan, foxglove_bridge nem opció (nem támogatja Foxy-t).'},
+  {prio:'p1', title:'Élő (ROBOT_BACKEND=live) teljes út sosem futott roboton', detail:'Csak mc_sensor_hub read-only fut élőben; mozgásvezérlés élő teszt még hátravan.'},
+  {prio:'p1', title:'2 telemetria-mezőnév ellenőrizendő élő menet előtt', detail:'LiveRobotClient mezőneveinek végső egyeztetése a valódi webrtc_bridge API-val.'},
+];
+
+const tbody = document.querySelector('#todoTable tbody');
+function renderTodos(){
+  const prio = document.getElementById('filterPrio').value;
+  const q = document.getElementById('search').value.toLowerCase();
+  const rows = TODOS.filter(t =>
+    (prio==='all'||t.prio===prio) &&
+    (t.title.toLowerCase().includes(q) || t.detail.toLowerCase().includes(q))
+  );
+  const labels = {p0:'P0 kritikus', p1:'P1 súlyos', blocker:'Blokkoló'};
+  tbody.innerHTML = rows.map(t => `
+    <tr>
+      <td><span class="prio ${t.prio}">${labels[t.prio]}</span></td>
+      <td>${t.title}</td>
+      <td style="color:var(--dim)">${t.detail}</td>
+    </tr>`).join('');
+}
+document.getElementById('filterPrio').addEventListener('change', renderTodos);
+document.getElementById('search').addEventListener('input', renderTodos);
+
+let sortDir = {};
+document.querySelectorAll('#todoTable th').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    sortDir[key] = !sortDir[key];
+    TODOS.sort((a,b) => sortDir[key] ? a[key].localeCompare(b[key]) : b[key].localeCompare(a[key]));
+    renderTodos();
+  });
+});
+renderTodos();
+
+// ---------- DEPENDENCY GRAPH ----------
+const C_CORE='#ff9d3d', C_PILLAR='#7c5cff', C_UI='#33d17a', C_SENSOR='#ffb545', C_ERR='#ff5f6d', C_DOC='#5c7ae0';
+
+const nodes = new vis.DataSet([
+  {id:'jetson', label:'Jetson Orin\n192.168.123.18', color:C_SENSOR, shape:'box', font:{color:'#fff'}},
+  {id:'webrtc_bridge', label:'webrtc_bridge\n(kamera+LiDAR+telemetria)', color:C_SENSOR, shape:'box'},
+  {id:'core', label:'core :9101\nrobot-kliens proxy\n(READONLY zár)', color:C_CORE, shape:'box', font:{color:'#fff'}},
+  {id:'live_client', label:'LiveRobotClient', color:C_CORE, shape:'ellipse'},
+  {id:'mock_client', label:'MockRobotClient', color:C_CORE, shape:'ellipse'},
+  {id:'mc_sensor_hub', label:'mc_sensor_hub\n(élő, read-only)', color:C_CORE, shape:'box', font:{color:'#fff'}},
+  {id:'mc_motion', label:'mc_motion\n(új szolgáltatás)', color:C_PILLAR, shape:'box'},
+  {id:'mapping', label:'mapping :9102\nfrontier-exploration', color:C_PILLAR, shape:'box'},
+  {id:'navigation', label:'navigation :9103\nA* (lépcső-heurisztika fix)', color:C_PILLAR, shape:'box'},
+  {id:'orchestration', label:'orchestration :9104\ntask-lánc', color:C_PILLAR, shape:'box'},
+  {id:'sensors', label:'sensors :9105', color:C_PILLAR, shape:'box'},
+  {id:'multicam', label:'multicam :9106', color:C_PILLAR, shape:'box'},
+  {id:'audio', label:'audio :9107', color:C_PILLAR, shape:'box'},
+  {id:'blackbox', label:'blackbox :9108\nJSONL naplózás', color:C_PILLAR, shape:'box'},
+  {id:'remote', label:'remote\nlog_shipper + Tailscale', color:C_PILLAR, shape:'box'},
+  {id:'digital_twin', label:'digital-twin :9110\n3D böngésző-felület', color:C_UI, shape:'box'},
+  {id:'rosbridge', label:'rosbridge_suite\nSIGSEGV (host mode)', color:C_ERR, shape:'ellipse'},
+  {id:'realsense', label:'RealSense D435i\n(szín+mélység)', color:C_SENSOR, shape:'diamond'},
+  {id:'hesai', label:'Hesai PandarXT-16', color:C_SENSOR, shape:'diamond'},
+  {id:'audit', label:'AUDIT-2026-09-10.md\n12 P0 → mind javítva', color:C_DOC, shape:'box'},
+  {id:'status', label:'STATUS.md', color:C_DOC, shape:'box'},
+  {id:'conventions', label:'CONVENTIONS.md\n(portok, env-változók)', color:C_DOC, shape:'box'},
+]);
+
+const edges = new vis.DataSet([
+  {from:'jetson', to:'webrtc_bridge', label:'hosztolja'},
+  {from:'hesai', to:'webrtc_bridge', label:'LiDAR UDP'},
+  {from:'realsense', to:'webrtc_bridge', label:'RGB-D'},
+  {from:'webrtc_bridge', to:'live_client', label:'API'},
+  {from:'webrtc_bridge', to:'mc_sensor_hub', label:'rosbridge élő adat'},
+  {from:'live_client', to:'core', label:'ROBOT_BACKEND=live'},
+  {from:'mock_client', to:'core', label:'ROBOT_BACKEND=mock'},
+  {from:'core', to:'mapping', label:'CORE_URL / remote mode'},
+  {from:'core', to:'navigation', label:'állapot'},
+  {from:'core', to:'orchestration', label:'állapot'},
+  {from:'core', to:'sensors', label:'állapot'},
+  {from:'core', to:'multicam', label:'állapot'},
+  {from:'core', to:'audio', label:'állapot'},
+  {from:'core', to:'mc_motion', label:'új'},
+  {from:'mapping', to:'navigation', label:'occupancy grid'},
+  {from:'navigation', to:'orchestration', label:'goto/A*'},
+  {from:'orchestration', to:'blackbox', label:'task-log'},
+  {from:'mc_sensor_hub', to:'mc_motion', label:'szenzor→mozgás'},
+  {from:'mc_sensor_hub', to:'digital_twin', label:'bináris pontfelhő'},
+  {from:'core', to:'blackbox', label:'JSONL'},
+  {from:'blackbox', to:'remote', label:'log_shipper → Tailscale'},
+  {from:'mapping', to:'digital_twin', label:'/map'},
+  {from:'multicam', to:'digital_twin', label:'kamera-feed'},
+  {from:'core', to:'rosbridge', label:'kísérlet — összeomlik'},
+  {from:'audit', to:'navigation', label:'P0-1 javítás'},
+  {from:'audit', to:'live_client', label:'P0-2 javítás'},
+  {from:'audit', to:'core', label:'P0-5..P0-9 javítás'},
+  {from:'audit', to:'digital_twin', label:'P0-10 javítás'},
+  {from:'status', to:'audit', label:'hivatkozik'},
+  {from:'conventions', to:'core', label:'port/env-szabály'},
+]);
+
+edges.forEach(e => e.color = {color:'#2c3b52', highlight:'#ff9d3d'});
+nodes.forEach(n => n.font = n.font || {color:'#dbe4f0', size:12});
+
+const network = new vis.Network(document.getElementById('graph'), {nodes, edges}, {
+  layout:{ improvedLayout:true },
+  physics:{ solver:'forceAtlas2Based', forceAtlas2Based:{gravitationalConstant:-70, springLength:130, springConstant:0.06}, stabilization:{iterations:180} },
+  edges:{ arrows:{to:{enabled:true, scaleFactor:0.5}}, font:{color:'#7c8aa5', size:10, strokeWidth:0}, smooth:{type:'continuous'} },
+  nodes:{ borderWidth:0, shadow:true, font:{color:'#0a0e14', size:12, face:'Segoe UI'} },
+  interaction:{ hover:true, tooltipDelay:100 }
+});
+</script>
+</body>
+</html>

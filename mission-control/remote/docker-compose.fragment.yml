@@ -1,0 +1,64 @@
+# remote/docker-compose.fragment.yml
+#
+# Standalone Tailscale integration fragment for mission-control. This is
+# NOT wired into the top-level docker-compose.yml automatically -- a human
+# (or another step) merges the `services:` entries below into it. Kept
+# separate so this pillar can be reviewed/approved on its own, since it's
+# the one piece that reaches outside the local network.
+#
+# Design constraints (see remote/README.md for the full story):
+#   - Docker-only. Never touches the native Jetson OS network stack.
+#   - Userspace networking (TS_USERSPACE=true) -- no --privileged, no
+#     host networking, no /dev/net/tun requirement, no NET_ADMIN capability.
+#   - TS_AUTHKEY comes from an environment variable, never hardcoded here.
+#   - TS_STATE_DIR is a named volume so the tailnet identity (and thus the
+#     machine's tailnet IP/name) survives container restarts/rebuilds.
+#   - Does NOT auto-start anything meaningful without a real TS_AUTHKEY --
+#     with an empty/unset TS_AUTHKEY the tailscale container just sits
+#     idle and logs that it needs one; it will not connect to any tailnet
+#     on its own.
+#
+# Once merged into the main docker-compose.yml, other pillars' HTTP ports
+# (blackbox:9108, sensors:9105, etc.) become reachable over the tailnet by
+# either:
+#   (a) putting those services on `network_mode: "service:tailscale"` so
+#       they share the tailscale container's network namespace and are
+#       reachable at <tailnet-name>:<port>, or
+#   (b) leaving them on the default bridge network and instead running a
+#       small reverse proxy (or Tailscale Serve, see README) inside the
+#       tailscale container that forwards to them by service name.
+# This fragment defines the tailscale service itself; which of (a)/(b) to
+# use for which pillar is a decision for whoever merges this in -- see
+# README.md "Exposing a service over the tailnet" for both recipes.
+
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: mc-tailscale
+    hostname: mission-control
+    environment:
+      # Required -- set this in the environment/shell before `docker
+      # compose up`, or in a .env file that is gitignored. Never commit a
+      # real key. See README.md for how to generate one.
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
+      # Userspace networking: no kernel TUN device, no --privileged, no
+      # NET_ADMIN. Slightly higher latency than kernel mode, but it is the
+      # mode that requires zero changes to the native Jetson network stack.
+      - TS_USERSPACE=true
+      # Persist identity/state across container restarts.
+      - TS_STATE_DIR=/var/lib/tailscale
+      # Example extra flags: tag the node so tailnet ACLs can target it,
+      # and give it a name distinct from the container hostname. Adjust
+      # the tag to whatever this tailnet's ACL policy actually defines.
+      - TS_EXTRA_ARGS=--advertise-tags=tag:go2-mission-control --accept-dns=false
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    restart: unless-stopped
+    # No `network_mode: host`, no `privileged: true`, no `cap_add:
+    # [NET_ADMIN]` -- userspace mode needs none of that. If a future need
+    # arises for kernel-mode networking (lower latency, subnet routing),
+    # that is a deliberate, separate decision -- not the default here.
+
+volumes:
+  tailscale-state:
+    name: mc-tailscale-state

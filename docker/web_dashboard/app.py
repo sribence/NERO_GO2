@@ -35,8 +35,11 @@ import numpy as np
 import requests
 from flask import Flask, Response, jsonify, render_template, request
 
+import lidar_mapping
+import mission
 import mock_streams
 import mock_thermal
+import speech
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("nero_go2.web_dashboard")
@@ -429,14 +432,24 @@ def _navigation_thread():
                     _nav_state["target"] = None
 
 
-def _capture_photo():
+def _capture_photo(waypoint_id=None):
     """Fényképező akciópont — kimenti az aktuális kamera-képkockát. MOCK
     módban (nincs webrtc_bridge lokálisan) egy előre elkészített kép-
     placeholder-t használ, hogy a frontend-lánc (SSE esemény -> oldalsáv
     -> térkép-bélyegkép) végigtesztelhető legyen ma este. Holnap reggel
-    a webrtc_bridge már fut, a valós /camera.jpg-t menti."""
-    filename = f"photo_{int(time.time())}.jpg"
+    a webrtc_bridge már fut, a valós /camera.jpg-t menti.
+
+    waypoint_id: opcionális — a mission-runner "photo" task-ja adja át, hogy
+    a fájlnév a waypoint-azonosítót is tartalmazza (timestamp+waypoint-id),
+    ld. docs/20-egyrobot-mission-taszklista.md."""
+    suffix = f"_wp{waypoint_id}" if waypoint_id is not None else ""
+    filename = f"photo_{int(time.time())}{suffix}.jpg"
     dest = os.path.join(os.path.dirname(__file__), "static", "photos", filename)
+    # 2026-09-17: a static/photos/ mappa nem létezett a repóban (csak
+    # static/maps/ volt becsomagolva) — ez a mission "photo" task-ja nélkül
+    # eddig rejtve maradt, mert nem volt semmi, ami rendszeresen hívja
+    # _capture_photo()-t. Az os.makedirs itt biztonságos/idempotens.
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
     try:
         resp = requests.get(f"{WEBRTC_BRIDGE_URL}/camera.jpg", timeout=2)
         if resp.status_code == 200:
@@ -456,6 +469,93 @@ def _capture_photo():
 
 
 threading.Thread(target=_navigation_thread, daemon=True).start()
+
+
+# --- Mission/task-queue wiring (ld. mission.py) ---------------------------
+# Egyrobot (Go2-only) küldetés-futtató — a TODO.md szerinti multi-robot
+# (Xavier+Go2) core-refaktor NINCS bekötve, csak ez az egyetlen Go2-t
+# vezérlő réteg. A MissionRunner-nek átadott 3 kis helper-függvény a MEGLÉVŐ
+# _nav_state-et írja/olvassa, ugyanazt, amit az /api/navigate,
+# /api/navigate/cancel és /nav_status route is használ — a mission-runner
+# tehát nem egy párhuzamos, önálló mozgás-útvonal, hanem ugyanazon az
+# armed-kapun megy át, mint a kézi/egypontos navigáció.
+def _navigate_single(x, y):
+    """Egypontos navigáció indítása a mission-runner számára — ugyanaz az
+    _nav_state, mint az /api/navigate route-nál, csak Flask-request nélkül."""
+    if not _is_armed():
+        raise RuntimeError("not armed")
+    with _nav_lock:
+        _nav_state["target"] = {"x": float(x), "y": float(y), "action": None}
+        _nav_state["queue"] = []
+        _nav_state["last_status"] = {"type": "started", "target": dict(_nav_state["target"])}
+    _touch_activity()
+
+
+def _cancel_navigation():
+    """Ugyanaz a leállítás, mint az /api/navigate/cancel route — kiszervezve,
+    hogy a mission-runner abort() is meghívhassa Flask-request nélkül."""
+    with _nav_lock:
+        _nav_state["target"] = None
+        _nav_state["queue"] = []
+        _nav_state["last_status"] = {"type": "cancelled"}
+    _safe_stop_move("mission abort")
+
+
+def _nav_reached(x, y, tol=0.05):
+    """True, ha a legutóbbi navigáció-ciklus PONTOSAN ezt a célpontot érte el
+    ("reached" last_status + nincs aktív target) — NEM elég, hogy a target
+    None legyen, mert cancel/estop is None-ra állítja last_status típus
+    nélkül/mással, és azt itt nem szabad "megérkezés"-ként félreérteni."""
+    with _nav_lock:
+        target = _nav_state["target"]
+        last_status = _nav_state["last_status"]
+    if target is not None:
+        return False
+    if not last_status or last_status.get("type") != "reached":
+        return False
+    return abs(last_status.get("x", 1e9) - x) < tol and abs(last_status.get("y", 1e9) - y) < tol
+
+
+def _mission_run_pose_action(action_name):
+    """"pose" task — egy meglévő /run_action-nek megfelelő mozdulat (pl.
+    wave/sit), de szinkron hívva (nem külön szálban), mert a mission-runner
+    saját maga már egy háttérszálban fut, és tudnia kell, mikor fejeződött
+    be, mielőtt a következő waypointra megy."""
+    if not _is_armed():
+        raise RuntimeError("not armed")
+    action = _actions().get(action_name or "sit")
+    if not action:
+        raise RuntimeError(f"unknown pose action: {action_name}")
+    action()
+    _touch_activity()
+
+
+def _mission_lie_down():
+    """"lie_down" task — a meglévő StandDown ("lay_down") akció, szinkron
+    hívva, ugyanazzal az armed-kapuval, mint bármelyik mozgás-parancs."""
+    if not _is_armed():
+        raise RuntimeError("not armed")
+    action = _actions().get("lay_down")
+    if not action:
+        raise RuntimeError("sdk not ready")
+    action()
+    _touch_activity()
+
+
+# _mission.py default charge_dock_fn-je (log "would dock here", ok=False)
+# pont megfelel a task-leírásnak — nincs valós dokkoló-station integráció
+# ebben a repóban (ld. grep eredmény: "dock"/"charg" sehol az app.py-ban
+# hardware-kontextusban), ezért itt nem adunk felül semmit, a mission
+# modul saját stub-ját használjuk.
+_mission_runner = mission.MissionRunner(
+    is_armed_fn=_is_armed,
+    navigate_to_fn=_navigate_single,
+    cancel_navigate_fn=_cancel_navigation,
+    nav_reached_fn=_nav_reached,
+    run_pose_action_fn=_mission_run_pose_action,
+    capture_photo_fn=_capture_photo,
+    lie_down_fn=_mission_lie_down,
+)
 
 
 # --- Mozgás Makró & Útvonal Rögzítő / Visszajátszó Motor (Macro Subsystem) ---
@@ -753,6 +853,150 @@ def _security_thread():
 threading.Thread(target=_security_thread, daemon=True).start()
 
 
+# --- "Kövesd az embert" mód (YOLO) -----------------------------------------
+# A steering-matek (compute_follow_command/pick_person_target/person_lost)
+# tiszta, SDK-független függvényekben él person_follow.py-ban, ugyanúgy,
+# mint a fenti compute_tracking_command/compute_nav_command minta — csak ez
+# a szál köti be sport_client.Move()-ba, ami MÁR a meglévő armed-kapu +
+# watchdog + E-stop alatt fut. Nincs itt semmilyen új, hardver-felé közvetlen
+# parancsút (nincs LowCmd, nincs joint-szintű írás).
+#
+# A YOLO-detektor (ultralytics) a testvér docker/realsense_bridge szolgáltatás
+# prototípusa (yolo_detector.py) — ez sosem futott élesben a roboton. Lusta
+# importtal töltjük be (csak amikor /api/follow/start tényleg elindul), hogy
+# a dashboard ultralytics/cv2 nélkül (pl. tiszta MOCK_SDK UI-fejlesztés) is
+# elinduljon.
+from person_follow import (  # noqa: E402
+    FOLLOW_PERSON_LOST_TIMEOUT_S,
+    compute_follow_command,
+    person_lost,
+    pick_person_target,
+)
+
+_REALSENSE_BRIDGE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "realsense_bridge")
+FOLLOW_LOOP_INTERVAL_S = 0.2
+
+_follow_lock = threading.Lock()
+_follow_state = {
+    "active": False,
+    "detected": False,
+    "bbox": None,
+    "confidence": 0.0,
+    "vx": 0.0,
+    "vyaw": 0.0,
+    "last_event": None,
+}
+
+
+def _load_yolo_detect():
+    """A realsense_bridge testvér-szolgáltatás yolo_detector.detect()
+    függvénye — sys.path-bővítéssel, mert két külön docker-szolgáltatás
+    (más konténer, más requirements.txt), nem csomagolt Python-package."""
+    import sys
+
+    if _REALSENSE_BRIDGE_DIR not in sys.path:
+        sys.path.insert(0, _REALSENSE_BRIDGE_DIR)
+    from yolo_detector import detect  # ultralytics import ITT történik meg
+
+    return detect
+
+
+def _safe_stop_move(reason):
+    """A robot lezárt megállítása — ha az SDK ismeri a StopMove()-ot,
+    azt hívjuk (ez a dedikált "állítsd meg a jelenlegi Move()-sebességet"
+    hívás), különben ugyanaz a Move(0,0,0) fallback, amit a kódbázis
+    mindenhol máshol is használ (ld. api_navigate_cancel/api_estop/
+    security_stop). Sosem dob kifelé kivételt."""
+    if not sport_client:
+        return
+    stop_fn = getattr(sport_client, "StopMove", None)
+    try:
+        if callable(stop_fn):
+            stop_fn()
+        else:
+            sport_client.Move(0, 0, 0)
+    except Exception:
+        logger.exception("%s: stop command failed", reason)
+
+
+def _follow_thread():
+    import cv2
+
+    try:
+        detect = _load_yolo_detect()
+    except Exception:
+        logger.exception("Follow: YOLO detector could not be loaded (ultralytics/cv2 hiányzik?) - leáll")
+        with _follow_lock:
+            _follow_state["active"] = False
+            _follow_state["last_event"] = {"type": "error", "message": "yolo unavailable", "t": time.time()}
+        return
+
+    last_seen = None
+    was_stopped = True  # ne spammeljük a StopMove-ot minden ticknél, ha már állunk
+    logger.info("Follow: thread elindult")
+
+    while True:
+        with _follow_lock:
+            if not _follow_state["active"]:
+                return  # /api/follow/stop kérte - ez a szál itt véget ér
+
+        frame = None
+        try:
+            resp = requests.get(f"{WEBRTC_BRIDGE_URL}/camera.jpg", timeout=1.0)
+            if resp.status_code == 200:
+                arr = np.frombuffer(resp.content, dtype=np.uint8)
+                frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        except requests.RequestException:
+            frame = None
+        except Exception:
+            logger.exception("Follow: kamera-képkocka dekódolása sikertelen")
+            frame = None
+
+        now = time.time()
+        target = None
+        if frame is not None:
+            try:
+                result = detect(frame)
+                target = pick_person_target(result.get("detections"))
+            except Exception:
+                logger.exception("Follow: YOLO detect() sikertelen")
+                target = None
+
+        if target is not None:
+            last_seen = now
+            h, w = frame.shape[:2]
+            vx, vyaw = compute_follow_command(target["bbox"], w, h)
+            with _follow_lock:
+                _follow_state["detected"] = True
+                _follow_state["bbox"] = target["bbox"]
+                _follow_state["confidence"] = target["confidence"]
+                _follow_state["vx"] = vx
+                _follow_state["vyaw"] = vyaw
+            was_stopped = False
+            if _is_armed() and sport_client:
+                try:
+                    sport_client.Move(vx, 0.0, vyaw)
+                except Exception:
+                    logger.exception("Follow: Move() failed")
+                _touch_activity()
+        else:
+            with _follow_lock:
+                _follow_state["detected"] = False
+                _follow_state["bbox"] = None
+                _follow_state["confidence"] = 0.0
+            if person_lost(last_seen, now, FOLLOW_PERSON_LOST_TIMEOUT_S) and not was_stopped:
+                logger.info("Follow: nincs szemely-detekcio %.1fs ota, megallitas", FOLLOW_PERSON_LOST_TIMEOUT_S)
+                _safe_stop_move("Follow (person lost)")
+                _touch_activity()
+                with _follow_lock:
+                    _follow_state["vx"] = 0.0
+                    _follow_state["vyaw"] = 0.0
+                    _follow_state["last_event"] = {"type": "person_lost", "t": now}
+                was_stopped = True
+
+        time.sleep(FOLLOW_LOOP_INTERVAL_S)
+
+
 # --- Élő occupancy grid ("Robotporszívó mód") -----------------------------
 # 2026-09-05, bemutató napja: a tegnap esti docker/mapping/build_map.py
 # offline logikájának ÉLŐ, inkrementális változata — valós hesai_bridge
@@ -777,12 +1021,24 @@ LIVE_MAP_YAW_OFFSET = math.radians(90)
 # a cella "biztos fal" / "biztos szabad" hitét, telítve egy határnál — így
 # egy stabil megfigyelés idővel magabiztos, VÉKONY fallá áll össze, egy
 # elszigetelt zajpont pedig nem tudja felülírni.
-LOGODDS_HIT = 0.85
-LOGODDS_MISS = -0.4
-LOGODDS_MIN = -5.0
-LOGODDS_MAX = 5.0
-LOGODDS_OCC_THRESH = 2.0
-LOGODDS_FREE_THRESH = -2.0
+# 2026-09-17: a log-odds/Bresenham/cella-konverziós math kiszervezve a
+# lidar_mapping.py-ba (dependency-light, app.py importja nélkül tesztelhető
+# — ld. docker/web_dashboard/tests/test_lidar_mapping.py). Itt csak a
+# konstansok referenciái maradnak, hogy a lenti kód ne törjön.
+LOGODDS_HIT = lidar_mapping.LOGODDS_HIT
+LOGODDS_MISS = lidar_mapping.LOGODDS_MISS
+LOGODDS_MIN = lidar_mapping.LOGODDS_MIN
+LOGODDS_MAX = lidar_mapping.LOGODDS_MAX
+LOGODDS_OCC_THRESH = lidar_mapping.LOGODDS_OCC_THRESH
+LOGODDS_FREE_THRESH = lidar_mapping.LOGODDS_FREE_THRESH
+
+# 2026-09-17: periodikus PNG-mentés a felhalmozott térképről, hogy a mai
+# esti tesztfutás(ok) és a holnap reggeli valódi roboton futó élő térkép is
+# nyomot hagyjon a diszken, ne csak a memóriában éljen a folyamat futása
+# alatt. Lásd docs/18-elo-terkep-perzisztencia-2026-09-17.md.
+LIVE_MAP_SNAPSHOT_PATH = os.path.join(os.path.dirname(__file__), "static", "maps", "live_map.png")
+LIVE_MAP_SNAPSHOT_INTERVAL_S = 10.0
+_live_map_snapshot_scheduler = lidar_mapping.SnapshotScheduler(LIVE_MAP_SNAPSHOT_INTERVAL_S)
 
 _live_map_lock = threading.Lock()
 _live_map_state = {
@@ -793,38 +1049,9 @@ _live_map_state = {
     "origin_x": None,
     "origin_y": None,
     "cells": 0,
+    "snapshot_url": None,
+    "snapshot_saved_at": None,
 }
-
-
-def _live_map_world_to_cell(wx, wy, origin_x, origin_y, resolution):
-    return int((wx - origin_x) / resolution), int((wy - origin_y) / resolution)
-
-
-def _bresenham_update_logodds(log_odds, x0, y0, x1, y1):
-    """Saját, cv2-mentes vonal-rasterizálás (Bresenham-algoritmus) — a robot
-    és egy LiDAR-pont közti cellákat "valószínűleg szabad" (LOGODDS_MISS),
-    a végpontot (a tényleges visszaverődés helyét) "valószínűleg fal"
-    (LOGODDS_HIT) irányba tolja, telítve [LOGODDS_MIN, LOGODDS_MAX] között."""
-    dx, dy = abs(x1 - x0), abs(y1 - y0)
-    sx = 1 if x0 < x1 else -1
-    sy = 1 if y0 < y1 else -1
-    err = dx - dy
-    h, w = log_odds.shape
-    x, y = x0, y0
-    while True:
-        if 0 <= x < w and 0 <= y < h:
-            is_endpoint = (x == x1 and y == y1)
-            delta = LOGODDS_HIT if is_endpoint else LOGODDS_MISS
-            log_odds[y, x] = min(LOGODDS_MAX, max(LOGODDS_MIN, log_odds[y, x] + delta))
-        if x == x1 and y == y1:
-            break
-        e2 = 2 * err
-        if e2 > -dy:
-            err -= dy
-            x += sx
-        if e2 < dx:
-            err += dx
-            y += sy
 
 
 def _live_map_update_once():
@@ -880,36 +1107,31 @@ def _live_map_update_once():
 
     with _live_map_lock:
         st = _live_map_state
-        res, ox, oy, cells = st["resolution"], st["origin_x"], st["origin_y"], st["cells"]
-        grid, log_odds = st["grid"], st["log_odds"]
+        res, ox, oy = st["resolution"], st["origin_x"], st["origin_y"]
+        log_odds = st["log_odds"]
 
         # Ha a robot elhagyta a térkép területét (pl. áthelyezték másik helyszínre vagy >7m-re eltávolodott),
         # automatikusan újraközpontosítjuk a térképet a robot körül!
+        cells = st["cells"]
         map_cx = ox + (cells * res) / 2.0
         map_cy = oy + (cells * res) / 2.0
-        if math.hypot(rx - map_cx, ry - map_cy) > (LIVE_MAP_SIZE_M * 0.40):
+        if log_odds is not None and math.hypot(rx - map_cx, ry - map_cy) > (LIVE_MAP_SIZE_M * 0.40):
             logger.info("Robot elhagyta a térkép területét (táv: %.1fm) — automatikus újraközpontosítás...", math.hypot(rx - map_cx, ry - map_cy))
             ox = rx - LIVE_MAP_SIZE_M / 2.0
             oy = ry - LIVE_MAP_SIZE_M / 2.0
             st["origin_x"] = ox
             st["origin_y"] = oy
-            grid.fill(-1)
             log_odds.fill(0)
 
-        rcx, rcy = _live_map_world_to_cell(rx, ry, ox, oy, res)
         step = max(1, world_xy.shape[0] // 300)
-        for wx, wy in world_xy[::step]:
-            pcx, pcy = _live_map_world_to_cell(wx, wy, ox, oy, res)
-            if 0 <= pcx < cells and 0 <= pcy < cells and 0 <= rcx < cells and 0 <= rcy < cells:
-                _bresenham_update_logodds(log_odds, rcx, rcy, pcx, pcy)
-
-        # A megjelenítendő rácsot a log-odds ALAPJÁN, minden tick-nél frissen
-        # számoljuk ki (a log_odds maga a tartós, felhalmozódó állapot) — így
-        # egy cella csak akkor válik "biztos fallá", ha a bizonyíték stabilan
-        # afelé mutat, és NEM tud egyetlen kósza ponttól visszaugrálni.
-        grid[:] = -1
-        grid[log_odds >= LOGODDS_OCC_THRESH] = 100
-        grid[log_odds <= LOGODDS_FREE_THRESH] = 0
+        # A tényleges akkumulációs logika (log-odds Bresenham-frissítés +
+        # a megjelenítendő tri-state rács újraszámolása) a lidar_mapping
+        # modulban él, tesztelve szintetikus scan-ekkel — ld.
+        # tests/test_lidar_mapping.py. `grid` itt egy ÚJ tömböt kap vissza,
+        # ezért vissza is írjuk a state-be (nem lehet in-place módosítani
+        # egy másik tömb tartalmát a régi referenciával).
+        new_grid = lidar_mapping.integrate_scan(log_odds, rx, ry, world_xy[::step], ox, oy, res)
+        st["grid"] = new_grid
 
 
 def _live_map_thread():
@@ -954,7 +1176,31 @@ def _live_map_thread():
 
     while True:
         _live_map_update_once()
+        _live_map_maybe_save_snapshot()
         time.sleep(0.5)
+
+
+def _live_map_maybe_save_snapshot():
+    """Every LIVE_MAP_SNAPSHOT_INTERVAL_S seconds, persists the current
+    accumulated grid to disk as a PNG under static/maps/ — so the map
+    survives a process restart (as an image, not resumable state) and can
+    be inspected outside the live SSE stream. Failure is logged, never
+    fatal (ld. lidar_mapping.save_grid_snapshot_png docstring)."""
+    if not _live_map_snapshot_scheduler.due():
+        return
+    with _live_map_lock:
+        st = _live_map_state
+        grid = st["grid"]
+        ready = st["ready"]
+    if not ready or grid is None:
+        return
+    saved_path = lidar_mapping.save_grid_snapshot_png(grid, LIVE_MAP_SNAPSHOT_PATH)
+    if saved_path is None:
+        logger.warning("Live map: snapshot mentés sikertelen (%s)", LIVE_MAP_SNAPSHOT_PATH)
+        return
+    with _live_map_lock:
+        _live_map_state["snapshot_url"] = "/static/maps/live_map.png"
+        _live_map_state["snapshot_saved_at"] = time.time()
 
 
 threading.Thread(target=_live_map_thread, daemon=True).start()
@@ -973,6 +1219,9 @@ class _FakeSportClient:
     def Move(self, vx, vy, vyaw):
         self._log("Move", vx, vy, vyaw)
 
+    def StopMove(self):
+        self._log("StopMove")
+
     def RecoveryStand(self):
         self._log("RecoveryStand")
 
@@ -987,6 +1236,12 @@ class _FakeSportClient:
 
     def Sit(self):
         self._log("Sit")
+
+    def FrontFlip(self):
+        self._log("FrontFlip")
+
+    def BackFlip(self):
+        self._log("BackFlip")
 
 
 # Neutral standing pose (hip, thigh, calf), radians — well inside every
@@ -1225,7 +1480,18 @@ def _actions():
         "wave": sport_client.Hello,
         "heart": sport_client.Heart,
         "sit": sport_client.Sit,
+        "front_flip": sport_client.FrontFlip,
+        "back_flip": sport_client.BackFlip,
     }
+
+
+# Native SportClient acrobatics (ld. support.unitree.com Sports Services
+# Interface — csak Go2 EDU, firmware <1.1.6). Nagy energiájú, eldöntetlen
+# kimenetű mozdulat: rossz talaj/akku/tisztázatlan terep esetén a robot
+# felboríthatja magát vagy megsérülhet a kamera/lidar tartó. Ezért NEM elég
+# az általános armed-check — kell explicit megerősítés + akku-minimum.
+_FLIP_ACTIONS = {"front_flip", "back_flip"}
+_FLIP_MIN_VOLTAGE = 24.0  # 2026-09-17: óvatos becslés, nincs gyári min.-küszöb dokumentálva
 
 
 @app.route("/pose_snapshot")
@@ -1601,6 +1867,42 @@ def api_navigate_cancel():
     return jsonify({"status": "cancelled"})
 
 
+@app.route("/api/speak", methods=["POST"])
+def api_speak():
+    """Text-to-speech — offline synthesis (pyttsx3, ld. speech.py), a WAV
+    hangot közvetlenül a válaszban adjuk vissza. NEM mozgásparancs (nem
+    érinti a sport_client-et), ezért nincs armed-kapu rá, mint a
+    /api/navigate-en — de minden hívást naplózunk, hogy nyomon követhető
+    legyen, mit "mondott" a robot.
+
+    FONTOS, hogy ne áltassuk magunkat: nincs megerősített fizikai
+    hangszóró a roboton/dokkon (ld. speech.py docstringje és
+    docs/18-tts-szoveg-felolvasas.md) — a WAV a böngészőben szólal meg,
+    ami ezt a dashboardot nézi, nem a robotból."""
+    payload = request.get_json(silent=True) or {}
+    text = payload.get("text")
+    if not text or not isinstance(text, str) or not text.strip():
+        return jsonify({"error": "missing or empty 'text' field"}), 400
+
+    logger.info("TTS request: %r", text[:200])
+    audio = speech.speak_to_wav(text)
+    if audio is None:
+        return jsonify({
+            "error": "tts unavailable (pyttsx3 not installed, or synthesis failed - see server logs)",
+        }), 503
+    return Response(audio, mimetype="audio/wav")
+
+
+# Canned phrases hooked to a few mission actions — lightweight, best-effort:
+# the /run_action route fires these in a background thread after the action
+# itself starts, and never lets a TTS failure affect the action's own
+# response (ld. run_action alul).
+_ACTION_PHRASES = {
+    "wave": "Szia!",
+    "stand_up": "Talpra!",
+}
+
+
 @app.route("/api/estop", methods=["POST"])
 def api_estop():
     """Vészleállító — megszakít minden futó autonóm scriptet (waypoint/
@@ -1614,6 +1916,11 @@ def api_estop():
         _security_state["active"] = False
         _security_state["detected"] = False
         _security_state["bbox"] = None
+    with _follow_lock:
+        _follow_state["active"] = False
+        _follow_state["detected"] = False
+        _follow_state["bbox"] = None
+        _follow_state["last_event"] = {"type": "estop", "t": time.time()}
     with _macro_lock:
         _macro_state["abort_flag"] = True
     if sport_client:
@@ -1651,6 +1958,49 @@ def security_stop():
 def security_status():
     with _security_lock:
         return jsonify(dict(_security_state))
+
+
+@app.route("/api/follow/start", methods=["POST"])
+def follow_start():
+    """"Kövesd az embert" mód elindítása — ugyanaz az armed-kapu, mint a
+    joystick/action gomboknál (ld. _is_armed()), mert ez a szál TÉNYLEGESEN
+    mozgatja a robotot egy ember felé, felügyelet nélkül, amíg aktív."""
+    if not _is_armed():
+        return jsonify({"error": "not armed"}), 403
+    with _follow_lock:
+        if _follow_state["active"]:
+            return jsonify({"status": "already running"})
+        _follow_state["active"] = True
+        _follow_state["detected"] = False
+        _follow_state["bbox"] = None
+        _follow_state["confidence"] = 0.0
+        _follow_state["vx"] = 0.0
+        _follow_state["vyaw"] = 0.0
+        _follow_state["last_event"] = {"type": "started", "t": time.time()}
+    threading.Thread(target=_follow_thread, daemon=True).start()
+    _touch_activity()
+    logger.info("Follow: elindítva")
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/follow/stop", methods=["POST"])
+def follow_stop():
+    with _follow_lock:
+        was_active = _follow_state["active"]
+        _follow_state["active"] = False
+        _follow_state["detected"] = False
+        _follow_state["bbox"] = None
+        _follow_state["last_event"] = {"type": "stopped", "t": time.time()}
+    if was_active:
+        _safe_stop_move("Follow/stop")
+    logger.info("Follow: leállítva")
+    return jsonify({"status": "ok"})
+
+
+@app.route("/follow_status")
+def follow_status():
+    with _follow_lock:
+        return jsonify(dict(_follow_state))
 
 
 _thermal_t0 = time.time()
@@ -1695,6 +2045,7 @@ def live_map_data():
                 ready = st["ready"]
                 grid = st["grid"]
                 res, ox, oy = st["resolution"], st["origin_x"], st["origin_y"]
+                snapshot_url, snapshot_saved_at = st["snapshot_url"], st["snapshot_saved_at"]
             with _lock:
                 rx, ry, ryaw = dog_data["position_x"], dog_data["position_y"], dog_data["sport_yaw"]
             if ready and grid is not None:
@@ -1709,6 +2060,12 @@ def live_map_data():
                     "robot_x": rx,
                     "robot_y": ry,
                     "robot_yaw": ryaw,
+                    # 2026-09-17: a legutóbb diszkre mentett PNG-pillanatkép
+                    # elérési útja/ideje — ld. _live_map_maybe_save_snapshot.
+                    # A meglévő mezők (width/height/data/stb.) változatlanok,
+                    # ez csak új, opcionális mező a meglévő fogyasztóknak.
+                    "snapshot_url": snapshot_url,
+                    "snapshot_saved_at": snapshot_saved_at,
                 }
             else:
                 payload = {"ready": False}
@@ -1788,13 +2145,77 @@ def run_action(action_name):
     if not action:
         return jsonify({"error": "unknown action"}), 404
 
+    if action_name in _FLIP_ACTIONS:
+        if (request.json or {}).get("confirm") is not True:
+            return jsonify({"error": "flip requires explicit confirm:true in body — operator must clear terrain/clearance/spotter first"}), 400
+        with _lock:
+            voltage = dog_data.get("voltage")
+        if voltage is not None and voltage < _FLIP_MIN_VOLTAGE:
+            return jsonify({"error": f"battery too low for flip ({voltage}V < {_FLIP_MIN_VOLTAGE}V)"}), 409
+
     with _macro_lock:
         if _macro_state["recording"]:
             _macro_state["pending_action"] = action_name
 
     threading.Thread(target=action, daemon=True).start()
     _touch_activity()
+
+    phrase = _ACTION_PHRASES.get(action_name)
+    if phrase:
+        # Best-effort, fire-and-forget: a TTS-hiba (hiányzó pyttsx3, stb.)
+        # itt sose dobjon ki hibát az action-válaszból — speak_to_wav maga
+        # sosem raise-el, de a szál indítását is óvatosan kezeljük.
+        try:
+            threading.Thread(target=speech.speak_to_wav, args=(phrase,), daemon=True).start()
+        except Exception:
+            logger.exception("run_action: failed to start TTS thread for %r", action_name)
+
     return jsonify({"status": f"running {action_name}"})
+
+
+# --- Mission/task-queue routes (single Go2, ld. mission.py docstring) ----
+@app.route("/api/mission", methods=["POST"])
+def api_mission_submit():
+    """Beküld egy waypoint+task listát ("queue"), de NEM indítja el —
+    /api/mission/start külön hívás, hogy az operátor átnézhesse a tervet."""
+    payload = request.get_json(force=True) or {}
+    waypoints = payload.get("waypoints")
+    if not waypoints:
+        return jsonify({"error": "missing 'waypoints' list"}), 400
+    try:
+        cleaned = _mission_runner.submit(waypoints)
+    except (ValueError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"status": "submitted", "waypoints": cleaned})
+
+
+@app.route("/api/mission/start", methods=["POST"])
+def api_mission_start():
+    """Elindítja a legutóbb beküldött missziót — háttérszálban fut, minden
+    lépés előtt armed-checkkel, a mozgás a meglévő /api/navigate-mechanizmust
+    használja (ld. _navigate_single)."""
+    if not _is_armed():
+        return jsonify({"error": "not armed"}), 403
+    try:
+        _mission_runner.start()
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 409
+    _touch_activity()
+    return jsonify({"status": "started"})
+
+
+@app.route("/api/mission/cancel", methods=["POST"])
+def api_mission_cancel():
+    """Küldetés-megszakítás — azonnal leállítja a mozgást is (ugyanaz a
+    Move(0,0,0)/StopMove fallback, mint /api/navigate/cancel-nél), a
+    háttérszál a legközelebbi abort-ellenőrzésnél kilép."""
+    _mission_runner.abort()
+    return jsonify({"status": "aborted"})
+
+
+@app.route("/mission_status")
+def mission_status():
+    return jsonify(_mission_runner.status())
 
 
 # =====================================================================

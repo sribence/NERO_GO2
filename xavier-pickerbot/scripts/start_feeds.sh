@@ -1,4 +1,4 @@
-# Futtatás a roboton (SSH-n at): ssh -i ~/.ssh/pickerbot_mini wheeltec@192.168.0.100 'bash -s' < start_feeds.sh
+# Futtatás a roboton (SSH-n at): ssh -i ~/.ssh/pickerbot_mini wheeltec@192.168.123.50 'bash -s' < start_feeds.sh
 # Elinditja: roscore, Astra RGB+depth+IR kamera, C70 kamera (kar), LiDAR, web_video_server, rosbridge_websocket
 
 source /opt/ros/noetic/setup.bash
@@ -22,4 +22,4 @@ rostopic list
 echo "SCRIPT_DONE"
 
 # Dashboard (minden feed egy oldalon): scripts/dashboard.html, helyi HTTP szerverrol nyitva (python -m http.server 8901), NE file://-kent
-# Kamerak nyersen: http://192.168.0.100:8080/
+# Kamerak nyersen: http://192.168.123.50:8080/

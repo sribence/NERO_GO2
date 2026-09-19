@@ -1,0 +1,223 @@
+# mission-control — teljes pillér-stack, robot nélkül (ROBOT_BACKEND=mock) is
+# indítható ezen a fejlesztői gépen. Élesben (Jetsonon) ROBOT_BACKEND=live-re
+# állítva, a tényleges robot-hálózaton fut ugyanez a compose.
+#
+# Használat: docker compose -f mission-control/docker-compose.yml up --build
+
+x-common-env: &common-env
+  ROBOT_BACKEND: ${ROBOT_BACKEND:-mock}
+  REDIS_HOST: redis
+  WEBRTC_BRIDGE_URL: ${WEBRTC_BRIDGE_URL:-http://192.168.123.18:8000}
+  DDS_NETWORK_IFACE: ${DDS_NETWORK_IFACE:-eth10}
+  MC_API_TOKEN: ${MC_API_TOKEN:?MC_API_TOKEN kotelezo - ird be a .env fajlba}
+  MC_ENABLE_DEBUG_ENDPOINTS: ${MC_ENABLE_DEBUG_ENDPOINTS:-0}
+
+# Minden pillér, a `core`-on kívül, ROBOT_CLIENT_MODE=remote + CORE_URL-t
+# kap: a saját külön mock/live robot-kliens helyett a `core` konténer HTTP
+# API-ján keresztül éri el a robotot (ld. core/remote_client.py) -- így
+# minden konténer UGYANAZT a póz/akku/armed-állapotot látja, nem
+# drifteltet mindegyik saját mockot.
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  core:
+    build:
+      context: .
+      dockerfile: core/Dockerfile
+    environment:
+      <<: *common-env
+    ports:
+      - "9101:9101"
+    depends_on:
+      - redis
+
+  mapping:
+    build:
+      context: .
+      dockerfile: mapping/Dockerfile
+    environment:
+      <<: *common-env
+      ROBOT_CLIENT_MODE: remote
+      CORE_URL: http://core:9101
+    expose:
+      - "9102"
+    volumes:
+      - mapping_logs:/app/mapping/logs
+    depends_on:
+      - redis
+      - core
+
+  navigation:
+    build:
+      context: .
+      dockerfile: navigation/Dockerfile
+    environment:
+      <<: *common-env
+      ROBOT_CLIENT_MODE: remote
+      CORE_URL: http://core:9101
+      MAPPING_URL: http://mapping:9102
+    expose:
+      - "9103"
+    volumes:
+      - navigation_logs:/app/navigation/logs
+    depends_on:
+      - redis
+      - mapping
+      - core
+
+  orchestration:
+    build:
+      context: .
+      dockerfile: orchestration/Dockerfile
+    environment:
+      <<: *common-env
+      ROBOT_CLIENT_MODE: remote
+      CORE_URL: http://core:9101
+      NAVIGATION_URL: http://navigation:9103
+      SENSORS_URL: http://sensors:9105
+      AUDIO_URL: http://audio:9107
+      MQTT_BROKER_HOST: mqtt
+    expose:
+      - "9104"
+    volumes:
+      - orchestration_logs:/app/orchestration/logs
+    depends_on:
+      - redis
+      - mqtt
+      - navigation
+      - core
+
+  sensors:
+    build:
+      context: .
+      dockerfile: sensors/Dockerfile
+    environment:
+      <<: *common-env
+      ROBOT_CLIENT_MODE: remote
+      CORE_URL: http://core:9101
+    expose:
+      - "9105"
+    volumes:
+      - sensors_captures:/app/sensors/captures
+      - sensors_logs:/app/sensors/logs
+    depends_on:
+      - redis
+      - core
+
+  multicam:
+    build:
+      context: .
+      dockerfile: multicam/Dockerfile
+    environment:
+      <<: *common-env
+      ROBOT_CLIENT_MODE: remote
+      CORE_URL: http://core:9101
+      RECORD_FPS: ${RECORD_FPS:-2}
+    expose:
+      - "9106"
+    volumes:
+      - multicam_recordings:/app/multicam/recordings
+      - multicam_logs:/app/multicam/logs
+    # Élesben (Jetsonon) USB-kamera passthrough kell ide, pl.:
+    # devices:
+    #   - /dev/video0:/dev/video0
+    #   - /dev/video1:/dev/video1
+    depends_on:
+      - redis
+      - core
+
+  audio:
+    build:
+      context: .
+      dockerfile: audio/Dockerfile
+    environment:
+      <<: *common-env
+      ROBOT_CLIENT_MODE: remote
+      CORE_URL: http://core:9101
+    expose:
+      - "9107"
+    volumes:
+      - audio_logs:/app/audio/logs
+    depends_on:
+      - redis
+      - core
+
+  blackbox:
+    build:
+      context: .
+      dockerfile: blackbox/Dockerfile
+    environment:
+      <<: *common-env
+      ROBOT_CLIENT_MODE: remote
+      CORE_URL: http://core:9101
+      RETENTION_SECONDS: ${BLACKBOX_RETENTION_SECONDS:-600}
+      MAX_BUFFER_MB: ${BLACKBOX_MAX_BUFFER_MB:-200}
+      INCIDENT_WINDOW_SECONDS: ${BLACKBOX_INCIDENT_WINDOW_SECONDS:-30}
+    expose:
+      - "9108"
+    volumes:
+      - blackbox_buffer:/app/blackbox/buffer
+      - blackbox_incidents:/app/blackbox/incidents
+      - blackbox_logs:/app/blackbox/logs
+    depends_on:
+      - redis
+      - core
+
+  digital-twin:
+    build:
+      context: .
+      dockerfile: digital-twin/Dockerfile
+    environment:
+      <<: *common-env
+      CORE_URL: http://core:9101
+      MAPPING_URL: http://mapping:9102
+      NAVIGATION_URL: http://navigation:9103
+    ports:
+      - "9110:9110"
+    depends_on:
+      - core
+      - mapping
+      - navigation
+
+  # Tailscale — CSAK akkor indítsd, ha van érvényes TS_AUTHKEY beállítva
+  # (.env fájlban vagy shell env-ben), különben hagyd kikommentezve/profile
+  # mögé zárva. Ld. remote/README.md.
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: go2-mission-control
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_USERSPACE: "true"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_EXTRA_ARGS: --advertise-tags=tag:go2-mission-control
+    volumes:
+      - tailscale_state:/var/lib/tailscale
+    profiles: ["remote"]  # `docker compose --profile remote up` kell hozzá
+
+volumes:
+  redis_data:
+  mapping_logs:
+  navigation_logs:
+  orchestration_logs:
+  sensors_captures:
+  sensors_logs:
+  multicam_recordings:
+  multicam_logs:
+  audio_logs:
+  blackbox_buffer:
+  blackbox_incidents:
+  blackbox_logs:
+  tailscale_state:

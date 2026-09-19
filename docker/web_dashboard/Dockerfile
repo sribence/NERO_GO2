@@ -14,8 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     git \
+    espeak-ng \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+# espeak-ng: pyttsx3's Linux TTS backend (system package, not pip — ld.
+# requirements.txt komment + docs/18-tts-szoveg-felolvasas.md). Without it,
+# app.py still starts fine (speech.py degrades gracefully), /api/speak just
+# answers 503.
 
 # A natúr rendszer meglévő CycloneDDS 0.10.2 build-je (bemásolva a build
 # context-be a build.sh/README lépései szerint, mielőtt docker build fut).
@@ -32,6 +37,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir "git+https://github.com/unitreerobotics/unitree_sdk2_python.git"
 
 COPY app.py .
+COPY speech.py .
 COPY mock_streams.py .
 COPY mock_thermal.py .
 COPY templates/ templates/

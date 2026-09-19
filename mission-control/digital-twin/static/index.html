@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0e13" />
+<title>Go2 Mission Control</title>
+<style>
+  :root {
+    --bg: #0b0e13;
+    --panel: rgba(12, 16, 24, 0.88);
+    --line: #22303f;
+    --text: #d7e0ea;
+    --muted: #9aabbe;
+    --accent: #7fd0ff;
+    --ok: #3ddc84;
+    --warn: #ffb84d;
+    --crit: #ff5a5a;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    overflow: hidden; overscroll-behavior: none;
+  }
+  #viewport { position: absolute; inset: 0; touch-action: none; }
+
+  /* ---------- top status bar: everything safety-critical, always visible ---------- */
+  #statusbar {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+    padding: calc(8px + var(--safe-top)) 10px 8px;
+    background: linear-gradient(180deg, rgba(11,14,19,0.96) 60%, rgba(11,14,19,0));
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 11px; font-size: 12.5px; font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .chip .k { color: var(--muted); }
+  .chip.bad  { border-color: var(--crit); color: var(--crit); }
+  .chip.warn { border-color: var(--warn); color: var(--warn); }
+  .chip.good { border-color: var(--ok); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .dot.warn { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .dot.bad { background: var(--crit); box-shadow: 0 0 6px var(--crit); }
+  #demo-chip { border-color: var(--warn); color: var(--warn); font-weight: 600; letter-spacing: .04em; }
+  #spacer { flex: 1 1 auto; }
+  .iconbtn {
+    background: var(--panel); border: 1px solid var(--line); color: var(--text);
+    border-radius: 999px; padding: 6px 11px; font-size: 12.5px; cursor: pointer;
+    min-height: 32px;
+  }
+  .iconbtn:active { background: #18202c; }
+
+  /* ---------- battery meter ---------- */
+  #batt-track { width: 38px; height: 7px; border-radius: 4px; background: #1c2531; overflow: hidden; }
+  #batt-fill { height: 100%; width: 0%; background: var(--ok); transition: width .4s, background .4s; }
+
+  /* ---------- alert stack: three severities, visually distinct ---------- */
+  #alerts {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    top: calc(58px + var(--safe-top)); z-index: 25;
+    width: min(560px, calc(100vw - 20px)); display: flex; flex-direction: column; gap: 6px;
+  }
+  .alert {
+    border-radius: 8px; padding: 9px 13px; font-size: 13px; line-height: 1.35;
+    border: 1px solid; display: flex; gap: 9px; align-items: flex-start;
+    animation: slideIn .18s ease-out;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } }
+  .alert .sev { font-weight: 700; flex: none; }
+  .alert.info { background: rgba(127,208,255,.10); border-color: #2f6d90; color: var(--accent); }
+  .alert.warn { background: rgba(255,184,77,.12); border-color: var(--warn); color: var(--warn); }
+  .alert.crit { background: rgba(255,90,90,.16); border-color: var(--crit); color: #ffb3b3;
+                animation: slideIn .18s ease-out, pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 50% { border-color: #ff9a9a; background: rgba(255,90,90,.26); } }
+
+  /* ---------- detail panel (collapsible, secondary info only) ---------- */
+  #details {
+    position: absolute; left: 10px; bottom: calc(84px + var(--safe-bottom)); z-index: 15;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 13px; font-size: 12.5px; min-width: 210px; backdrop-filter: blur(4px);
+  }
+  #details.collapsed .body { display: none; }
+  #details h2 {
+    font-size: 11px; margin: 0; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--muted); cursor: pointer; display: flex; justify-content: space-between; gap: 10px;
+  }
+  #details .body { margin-top: 8px; }
+  .row { display: flex; justify-content: space-between; gap: 14px; line-height: 1.7; }
+  .row .label { color: var(--muted); }
+  .row .value { font-variant-numeric: tabular-nums; }
+  .value.na { color: #5c6b7d; font-style: italic; }
+
+  /* ---------- goto confirmation: motion is never one stray tap away ---------- */
+  #goto-confirm {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: calc(96px + var(--safe-bottom)); z-index: 30;
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 10px;
+    padding: 13px 16px; width: min(360px, calc(100vw - 24px)); text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  }
+  #goto-confirm[hidden] { display: none; }
+  #goto-confirm .q { font-size: 14px; margin-bottom: 4px; }
+  #goto-confirm .meta { font-size: 12px; color: var(--muted); margin-bottom: 11px; font-variant-numeric: tabular-nums; }
+  #goto-confirm .btns { display: flex; gap: 9px; }
+  #goto-confirm button { flex: 1; padding: 11px; border-radius: 7px; font-size: 14px; cursor: pointer; border: 1px solid var(--line); min-height: 44px; }
+  #goto-yes { background: #14493a; border-color: var(--ok); color: var(--ok); font-weight: 600; }
+  #goto-no { background: #1a212c; color: var(--text); }
+
+  /* ---------- E-STOP: always reachable, one action, every screen ---------- */
+  #estopbar {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 40;
+    padding: 8px 10px calc(8px + var(--safe-bottom));
+    background: linear-gradient(0deg, rgba(11,14,19,0.96) 60%, rgba(11,14,19,0));
+    display: flex; gap: 8px; align-items: stretch;
+  }
+  #estop {
+    flex: 1; min-height: 56px; border-radius: 10px; cursor: pointer;
+    background: #8f1414; border: 2px solid #ff5a5a; color: #fff;
+    font-size: 17px; font-weight: 800; letter-spacing: .1em;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  #estop:active, #estop.firing { background: var(--crit); }
+  #estop .hint { font-size: 10px; font-weight: 500; letter-spacing: .02em; opacity: .75; }
+  #cancel-nav {
+    width: 104px; border-radius: 10px; border: 1px solid var(--line);
+    background: #1a212c; color: var(--text); font-size: 13px; cursor: pointer;
+  }
+  #cancel-nav:disabled { opacity: .4; cursor: default; }
+
+  @media (max-width: 520px) {
+    .chip { font-size: 11.5px; padding: 5px 9px; }
+    #details { min-width: 0; left: 8px; right: 8px; }
+    #estop { font-size: 15px; }
+    #cancel-nav { width: 84px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+  <div id="viewport"></div>
+
+  <div id="statusbar">
+    <span class="chip" id="conn-chip"><span class="dot" id="conn-dot"></span><span id="conn-text" data-i18n="connecting">csatlakozás…</span><span class="k" id="latency"></span></span>
+    <span class="chip" id="batt-chip"><span class="k" data-i18n="batt">akku</span><span id="batt-track"><span id="batt-fill"></span></span><span id="batt-pct">--</span></span>
+    <span class="chip" id="armed-chip"><span id="armed-text" data-i18n="disarmed">LEZÁRVA</span></span>
+    <span class="chip" id="mode-chip"><span class="k" data-i18n="state">állapot</span><span id="nav-state">--</span></span>
+    <span class="chip" id="demo-chip" hidden>DEMÓ</span>
+    <span id="spacer"></span>
+    <button class="iconbtn" id="lang-btn">EN</button>
+  </div>
+
+  <div id="alerts"></div>
+
+  <div id="details" class="collapsed">
+    <h2><span data-i18n="details">részletek</span><span id="details-caret">▸</span></h2>
+    <div class="body">
+      <div class="row"><span class="label" data-i18n="pose">pozíció x,y</span><span class="value" id="pose-xy">--</span></div>
+      <div class="row"><span class="label" data-i18n="yaw">irány</span><span class="value" id="pose-yaw">--</span></div>
+      <div class="row"><span class="label">level_id</span><span class="value" id="pose-level">--</span></div>
+      <div class="row"><span class="label" data-i18n="mapsize">térkép</span><span class="value" id="map-size">--</span></div>
+      <div class="row"><span class="label" data-i18n="coverage">lefedettség</span><span class="value" id="map-coverage">--</span></div>
+      <div class="row"><span class="label" data-i18n="nearest">legközelebbi tárgy</span><span class="value" id="proximity">--</span></div>
+      <div class="row"><span class="label" data-i18n="loc">lokalizáció</span><span class="value na" id="conf-pct">n/a</span></div>
+      <div class="row"><span class="label" data-i18n="lastgoto">utolsó cél</span><span class="value" id="last-goto">--</span></div>
+    </div>
+  </div>
+
+  <div id="goto-confirm" hidden>
+    <div class="q" data-i18n="gotoq">Ide küldjem a robotot?</div>
+    <div class="meta" id="goto-meta"></div>
+    <div class="btns">
+      <button id="goto-no" data-i18n="cancel">Mégse</button>
+      <button id="goto-yes" data-i18n="send">Indítás</button>
+    </div>
+  </div>
+
+  <div id="estopbar">
+    <button id="estop">■ E-STOP <span class="hint" data-i18n="estophint">(Szóköz)</span></button>
+    <button id="cancel-nav" disabled data-i18n="cancelnav">Megállít</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

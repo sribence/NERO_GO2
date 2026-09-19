@@ -11,12 +11,16 @@ Kulcsos, jelszó nélküli SSH-t használ. Sudo-hoz kell a jelszó: `dongguan`.
 Ha a szkript nélkül, kézzel akarsz belépni:
 
 ```bash
-ssh -i ~/.ssh/pickerbot_mini wheeltec@192.168.0.100
+ssh -i ~/.ssh/pickerbot_mini wheeltec@192.168.123.50
 ```
 
-## Hálózati topológia — közvetlen kábel, router nélkül
+**2026-09-18 óta a robot a közös robot-hálón van (`192.168.123.50`)** — gateway PC + TP-Link router, internettel. A teljes leírás: [09-robot-halozat.md](09-robot-halozat.md). Az alábbi közvetlen kábeles módszer csak tartalék, ha a robot-háló nem elérhető.
 
-A robotnak nincs saját internet-elérése és nincs a mi Wi-Fi hálózatunkon — közvetlen Ethernet-kábellel kötjük a fejlesztő laptophoz.
+## Tartalék: közvetlen kábel, router nélkül (régi módszer)
+
+> ⚠️ Az alábbi címek (`192.168.0.100` az `eth0`-n) a 2026-09-18 előtti állapotot írják le. Most az `eth0` címe `192.168.123.50`: közvetlen kábellel a laptopra `192.168.123.99/24`-et állíts, és a robotot `192.168.123.50`-en éred el. **Ne tedd vissza** az `eth0`-t `192.168.0.100`-ra, mert akkor a hotspot DHCP-je kiszivárog a kábelre (lásd [09-robot-halozat.md](09-robot-halozat.md)).
+
+A robotnak eredetileg nem volt saját internet-elérése — közvetlen Ethernet-kábellel kötöttük a fejlesztő laptophoz.
 
 1. Laptop LAN-portja ↔ robot Ethernet-portja, kábellel.
 2. A roboton **fix (statikus) IP**: `192.168.0.100`, netmask `255.255.255.0`.
@@ -31,7 +35,7 @@ A robotnak nincs saját internet-elérése és nincs a mi Wi-Fi hálózatunkon �
    ```
 4. **Internet a robotnak:** Windows ICS (Internet Connection Sharing) a Wi-Fi-ről az Ethernetre megosztva (`ncpa.cpl` → Wi-Fi → Tulajdonságok → Megosztás fül → "Engedélyezés..." → cél: Ethernet). Ez NEM írja felül a kézzel beállított `192.168.0.50/24` címet, csak NAT-ol a robot felé — de a robot gateway-ét kézzel át kell írni rá (2. pont).
 
-A robot Wi-Fi hotspotot is tud (alapértelmezett jelszó: `dongguan`), de nálunk a közvetlen Ethernet + statikus IP volt a megbízható megoldás.
+A robot Wi-Fi hotspotot is tud (SSID `WHEELTEC_OrinSuper_Noetic_JP515`, jelszó: `dongguan`, robot címe ott `192.168.0.100`) — SSH-ra jó, de a ROS master már a `192.168.123.50`-es címre van kötve.
 
 ## Kulcsos SSH beállítása (ha új robotpéldányhoz kell újra)
 

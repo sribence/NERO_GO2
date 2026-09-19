@@ -15,7 +15,7 @@
 
 ```bash
 # a roboton, SSH-n át:
-ssh -i ~/.ssh/pickerbot_mini wheeltec@192.168.0.100 'bash -s' < scripts/start_feeds.sh
+ssh -i ~/.ssh/pickerbot_mini wheeltec@192.168.123.50 'bash -s' < scripts/start_feeds.sh
 ```
 
 Elindítja: `roscore`, Astra kamera, LiDAR, C70 usb_cam, `web_video_server`, `rosbridge_websocket`.
@@ -27,7 +27,7 @@ python -m http.server 8901
 
 Majd nyisd meg: `http://127.0.0.1:8901/dashboard.html` — **fontos: ne `file://`-ként**, mert az statikus pillanatképként fut, a WebSocket-kapcsolat el sem indul.
 
-Nyers kamera-lista debughoz: `http://192.168.0.100:8080/` (csak sima 8-bites RGB/C70 képekhez jó, a Depth itt `cv_bridge` hibát dob — azt a dashboard saját canvas-render-je oldja meg).
+Nyers kamera-lista debughoz: `http://192.168.123.50:8080/` (csak sima 8-bites RGB/C70 képekhez jó, a Depth itt `cv_bridge` hibát dob — azt a dashboard saját canvas-render-je oldja meg).
 
 ## Technikai buktatók, amiket ez a projekt oldott meg
 

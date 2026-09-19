@@ -42,6 +42,7 @@ Ez egy drága, nehezen pótolható konfigurációjú példány. A natív, gyári
 - [docs/13-lokalis-llm-delegalas.md](docs/13-lokalis-llm-delegalas.md) — hogyan generálódik a kód helyi Qwen2.5-Coder modellel, Claude-review-val
 - [foxglove/](foxglove/) — Foxglove Studio layout/config a robot élő adatainak megjelenítéséhez
 - [backups/](backups/) — konfig-pillanatképek + Docker image mentések
+- [docs/16-mission-control-terv.md](docs/16-mission-control-terv.md) — **[mission-control/](mission-control/)**: önálló side-quest modul (2026-09-10-től) — autonóm padló+fal térképezés, kattints-a-térképre navigáció, multi-protokoll task-orchestration, multi-kamera, feketedoboz-naplózás, Tailscale, induló 3D digitális iker kezelőfelület
 
 ## Gyors infó
 

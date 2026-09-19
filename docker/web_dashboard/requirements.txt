@@ -4,3 +4,11 @@ cyclonedds==0.10.2
 roslibpy
 opencv-python-headless
 numpy
+# Offline TTS ("a robot can speak", ld. docs/18). On Linux/Docker pyttsx3
+# also needs the espeak/espeak-ng SYSTEM package (apt), not just this pip
+# package — ld. docs/18-tts-szoveg-felolvasas.md.
+pyttsx3
+# "Kövesd az embert" mód (person_follow.py + app.py _follow_thread) —
+# a ../realsense_bridge/yolo_detector.py prototípus modelljét futtatja itt
+# is (lusta importtal, csak /api/follow/start-nál), ld. docs/19.
+ultralytics

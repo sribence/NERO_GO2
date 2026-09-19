@@ -4,7 +4,7 @@ param(
     [string]$Command = ""
 )
 
-$ip = "192.168.0.100"
+$ip = "192.168.123.50"
 $user = "wheeltec"
 $keyPath = "$env:USERPROFILE\.ssh\pickerbot_mini"
 
