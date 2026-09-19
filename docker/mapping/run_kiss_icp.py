@@ -73,7 +73,7 @@ def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range):
     }
 
 
-def run_kiss_icp_live(bridge_url="http://localhost:5003", voxel_size=0.15,
+def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", voxel_size=0.15,
                        max_range=12.0, min_range=0.35, poll_interval_s=0.1):
     """Élő Hesai UDP stream feldolgozása a hesai_bridge HTTP API-n (/health,
     /lidar) keresztül. Csak akkor kér új pontfelhőt, ha a packet_count nőtt —
@@ -169,7 +169,7 @@ def run_kiss_icp(dataset_path, voxel_size=0.15, max_range=12.0, min_range=0.35):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--live":
-        bridge_url = sys.argv[2] if len(sys.argv) > 2 else "http://localhost:5003"
+        bridge_url = sys.argv[2] if len(sys.argv) > 2 else "http://127.0.0.1:5003"
         run_kiss_icp_live(bridge_url)
     else:
         dataset = sys.argv[1] if len(sys.argv) > 1 else "docker/mapping/walk_kicsi.jsonl"

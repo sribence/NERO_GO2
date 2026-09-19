@@ -9,8 +9,8 @@ start "MOCK-HESAI-BRIDGE" cmd /k python "%ROOT%docker\hesai_bridge\mock_hesai_br
 
 timeout /t 2 /nobreak >nul
 
-echo [2/3] KISS-ICP live mod inditasa (bridge: localhost:5003)...
-start "KISS-ICP-LIVE" cmd /k python "%ROOT%docker\mapping\run_kiss_icp.py" --live http://localhost:5003
+echo [2/3] KISS-ICP live mod inditasa (bridge: 127.0.0.1:5003)...
+start "KISS-ICP-LIVE" cmd /k python "%ROOT%docker\mapping\run_kiss_icp.py" --live http://127.0.0.1:5003
 
 echo [3/3] YOLO detektor teszt (ultralytics bus.jpg minta kepen)...
 start "YOLO-TEST" cmd /k python "%ROOT%docker\realsense_bridge\yolo_detector.py" https://ultralytics.com/images/bus.jpg
