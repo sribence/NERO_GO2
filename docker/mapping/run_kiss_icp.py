@@ -136,9 +136,20 @@ def deskew_points(pts_raw, yaw_samples):
     return out
 
 
+# Match-quality gate (real fix, item 3 of the deskew plan): an anomalous
+# frame-to-frame pose jump means ICP lost a confident lock on the map, even
+# after deskewing. Threshold is relative to a rolling median so it adapts to
+# walking vs standing-still baselines instead of one fixed number -- same
+# statistic already used offline in diagnose_kiss_icp_segments.py.
+JUMP_MEDIAN_WINDOW = 20
+JUMP_ANOMALY_MULT = 4.0
+JUMP_ANOMALY_MIN_M = 0.15
+
+
 def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
                               raw_pose=None, last_raw_pose=None,
-                              yaw_rate_gate=YAW_RATE_GATE_RAD):
+                              yaw_rate_gate=YAW_RATE_GATE_RAD,
+                              jump_history=None, prev_kiss_xy=None):
     """Registers one frame's raw points into KISS-ICP and the voxel-map
     accumulator, unless the raw SDK pose says this frame happened during a
     fast spin (see module docstring) -- then it's skipped and the pose is
@@ -147,8 +158,17 @@ def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
     raw_pose / last_raw_pose: (x, y, yaw) from the SDK, or None to disable
     gating entirely (falls back to registering every frame unconditionally).
 
+    jump_history / prev_kiss_xy: pass a shared list and the previous frame's
+    (x, y) to enable the match-quality gate. When this frame's ICP jump is
+    anomalous vs. the recent rolling median, its points are withheld from
+    map_voxels (map paused/not corrupted) but pose tracking continues
+    normally -- the user's own proposed design: stop registering the stream
+    into the map, not lose track of where the robot is. Pass None to disable
+    (old unconditional-map-update behaviour).
+
     Returns (entry_or_None, gated: bool). entry is the pose dict for the
-    trajectory output; None when the frame had too few points OR was gated.
+    trajectory output (adds "map_paused": bool when jump_history is used);
+    None when the frame had too few points OR was raw-yaw gated.
     """
     gated = False
     if raw_pose is not None and last_raw_pose is not None:
@@ -180,19 +200,34 @@ def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
     x, y, z = pose[:3, 3]
     roll, pitch, yaw = rotation_matrix_to_euler(pose[:3, :3])
 
+    map_paused = False
+    if jump_history is not None:
+        if prev_kiss_xy is not None:
+            jump_m = math.hypot(x - prev_kiss_xy[0], y - prev_kiss_xy[1])
+            med = float(np.median(jump_history)) if jump_history else 0.0
+            if jump_history and jump_m > max(JUMP_ANOMALY_MIN_M, med * JUMP_ANOMALY_MULT):
+                map_paused = True
+            else:
+                jump_history.append(jump_m)
+                del jump_history[:-JUMP_MEDIAN_WINDOW]
+        else:
+            jump_history.append(0.0)
+
     R = pose[:3, :3]
     t_vec = pose[:3, 3]
-    world_pts = (valid_pts @ R.T) + t_vec
 
-    for p in world_pts[::3]:  # Subsample for voxel map
-        vx = int(math.floor(p[0] / 0.02))
-        vy = int(math.floor(p[1] / 0.02))
-        vz = int(math.floor(p[2] / 0.02))
-        key = (vx, vy, vz)
-        if key not in map_voxels:
-            map_voxels[key] = p.tolist()
+    if not map_paused:
+        world_pts = (valid_pts @ R.T) + t_vec
+        for p in world_pts[::3]:  # Subsample for voxel map
+            vx = int(math.floor(p[0] / 0.02))
+            vy = int(math.floor(p[1] / 0.02))
+            vz = int(math.floor(p[2] / 0.02))
+            key = (vx, vy, vz)
+            if key not in map_voxels:
+                map_voxels[key] = p.tolist()
 
     return {
+        "map_paused": map_paused,
         "x": float(x),
         "y": float(y),
         "z": float(z),
@@ -226,6 +261,9 @@ def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", dashboard_url="http://
     last_raw_pose = None
     frame_count = 0
     gated_count = 0
+    map_paused_count = 0
+    jump_history = []
+    prev_kiss_xy = None
 
     while True:
         try:
@@ -273,7 +311,8 @@ def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", dashboard_url="http://
 
         entry, gated = _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
                                                   raw_pose=raw_pose, last_raw_pose=last_raw_pose,
-                                                  yaw_rate_gate=yaw_rate_gate)
+                                                  yaw_rate_gate=yaw_rate_gate,
+                                                  jump_history=jump_history, prev_kiss_xy=prev_kiss_xy)
         if raw_pose is not None:
             last_raw_pose = raw_pose
         if gated:
@@ -282,9 +321,14 @@ def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", dashboard_url="http://
         if entry is None:
             continue
 
+        prev_kiss_xy = (entry["x"], entry["y"])
+        if entry["map_paused"]:
+            map_paused_count += 1
+
         frame_count += 1
         entry["frame"] = frame_count
         entry["gated_total"] = gated_count
+        entry["map_paused_total"] = map_paused_count
         print(json.dumps(entry), flush=True)
 
 
@@ -306,7 +350,10 @@ def run_kiss_icp(dataset_path, voxel_size=0.15, max_range=12.0, min_range=0.35,
     t0 = time.time()
     frame_count = 0
     gated_count = 0
+    map_paused_count = 0
     last_raw_pose = None
+    jump_history = []
+    prev_kiss_xy = None
 
     with open(dataset_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -321,7 +368,8 @@ def run_kiss_icp(dataset_path, voxel_size=0.15, max_range=12.0, min_range=0.35,
 
             entry, gated = _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
                                                       raw_pose=raw_pose, last_raw_pose=last_raw_pose,
-                                                      yaw_rate_gate=yaw_rate_gate)
+                                                      yaw_rate_gate=yaw_rate_gate,
+                                                      jump_history=jump_history, prev_kiss_xy=prev_kiss_xy)
             if raw_pose is not None:
                 last_raw_pose = raw_pose
             if gated:
@@ -329,6 +377,10 @@ def run_kiss_icp(dataset_path, voxel_size=0.15, max_range=12.0, min_range=0.35,
                 continue
             if entry is None:
                 continue
+
+            prev_kiss_xy = (entry["x"], entry["y"])
+            if entry["map_paused"]:
+                map_paused_count += 1
 
             x, y, z = entry["x"], entry["y"], entry["z"]
             trajectory.append(entry)
@@ -339,7 +391,8 @@ def run_kiss_icp(dataset_path, voxel_size=0.15, max_range=12.0, min_range=0.35,
     elapsed = time.time() - t0
     fps = frame_count / elapsed if elapsed > 0 else 0
     print(f"[KISS-ICP] Completed {frame_count} frames in {elapsed:.2f}s ({fps:.1f} FPS). "
-          f"Gated (fast-spin, skipped): {gated_count}. Map voxels: {len(map_voxels)}")
+          f"Gated (fast-spin, skipped): {gated_count}. Map paused (bad match, pose kept): "
+          f"{map_paused_count}. Map voxels: {len(map_voxels)}")
 
     return trajectory, list(map_voxels.values())
 
