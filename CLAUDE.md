@@ -1,6 +1,9 @@
 # NERO_GO2 Fejlesztési Szabályok
 
-> Teljes kontextus, IP/port táblák, mission-control részletek: [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md). Roadmap: [TODO.md](TODO.md). Multi-agent/refaktor terv: [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md).
+> **ELSŐKÉNT olvasd:** [AI_QUICKSTART.md](AI_QUICKSTART.md) — modulok, repók, robot-elérés, push-módszer. 1 oldal.
+>
+> Roadmap: [TODO.md](TODO.md). Multi-agent/refaktor terv: [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md).
+> `PROJECT_CONTEXT.md` ELAVULT (submodule-restrukturálás előtti, sérült tartalom) — ne onnan dolgozz.
 
 **Architektúra:**
 - Backend: Flask (Python), Unitree SDK (Move() parancsok, négylábú robot)
