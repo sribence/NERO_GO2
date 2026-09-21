@@ -15,16 +15,23 @@ the 2026-09-21 live-robot diagnostic session):
   that warped scan into scan-to-map ICP produced pose jumps 5-15x the normal
   frame-to-frame jump and wrecked the accumulated voxel map (walk_live_rect
   frames 66-79: median jump 0.014m, this window's jumps 0.1-0.6m).
-  Fix: when the raw SDK yaw changed more than YAW_RATE_GATE_RAD since the
-  last frame, skip feeding that frame's points to KISS-ICP entirely (no map
-  update), and just carry KissICP's own pose forward with the raw SDK's
-  (x,y,yaw) delta as a coarse initial-guess seed. Once the spin settles, the
-  next accepted frame runs a normal scan-to-*map* ICP alignment (not
-  scan-to-scan), so it re-localizes against the untouched map rather than
-  trusting the carried-forward raw delta blindly -- confirmed visually in
-  seg_66_79_fastturn_gated.png vs the ungated seg_66_79_fastturn.png.
+  Fix (fallback, still active): when the raw SDK yaw changed more than
+  YAW_RATE_GATE_RAD since the last frame, skip feeding that frame's points
+  to KISS-ICP entirely (no map update), and just carry KissICP's own pose
+  forward with the raw SDK's (x,y,yaw) delta as a coarse initial-guess seed.
+  Once the spin settles, the next accepted frame runs a normal scan-to-*map*
+  ICP alignment (not scan-to-scan), so it re-localizes against the untouched
+  map rather than trusting the carried-forward raw delta blindly -- confirmed
+  visually in seg_66_79_fastturn_gated.png vs the ungated seg_66_79_fastturn.png.
+
+  2026-09-21: real fix added -- hesai_bridge.py now keeps each point's
+  azimuth + recv_time, and mc_motion exposes /imu/yaw_history. deskew_points()
+  below uses both to rotate every point back to a common reference orientation
+  before ICP ever sees the frame, instead of dropping whole frames. The
+  yaw-rate gate above stays as a fallback for when mc_motion is unreachable.
 """
 
+import bisect
 import json
 import math
 import sys
@@ -71,6 +78,62 @@ def planar_delta_matrix(dx, dy, dyaw):
     T[0, 3] = dx
     T[1, 3] = dy
     return T
+
+
+def _interp_yaw(yaw_samples, t):
+    """yaw_samples: [(t, yaw), ...] sorted ascending (mc_motion /imu/yaw_history).
+    Linear-interpolates yaw at time t, wrapping correctly across +-pi."""
+    if not yaw_samples:
+        return None
+    times = [s[0] for s in yaw_samples]
+    if t <= times[0]:
+        return yaw_samples[0][1]
+    if t >= times[-1]:
+        return yaw_samples[-1][1]
+    i = bisect.bisect_left(times, t)
+    t0, y0 = yaw_samples[i - 1]
+    t1, y1 = yaw_samples[i]
+    if t1 == t0:
+        return y0
+    frac = (t - t0) / (t1 - t0)
+    return y0 + frac * wrap_angle(y1 - y0)
+
+
+def deskew_points(pts_raw, yaw_samples):
+    """Un-warps one Hesai sweep using each point's own recv_time (6th field,
+    see hesai_bridge.py) and the robot's yaw history: rotates every point
+    around Z by the yaw the robot turned *between that point's capture time
+    and the sweep's reference time* (latest point in the frame), so a scan
+    taken mid-turn looks like it was taken all at once. This is the real fix
+    for the fast-turn scan warp described in the module docstring -- the
+    YAW_RATE_GATE_RAD heuristic below is a fallback for when yaw_samples is
+    unavailable (e.g. mc_motion unreachable), not the primary defense.
+
+    Points without a recv_time (older bridge / logged jsonl data) or an
+    empty yaw_samples list pass through unchanged -- always safe to call."""
+    if not pts_raw or len(pts_raw[0]) < 6 or not yaw_samples:
+        return pts_raw
+    times = [p[5] for p in pts_raw if p[5] is not None]
+    if not times:
+        return pts_raw
+    ref_yaw = _interp_yaw(yaw_samples, max(times))
+    if ref_yaw is None:
+        return pts_raw
+    out = []
+    for p in pts_raw:
+        t = p[5]
+        if t is None:
+            out.append(p)
+            continue
+        yaw_t = _interp_yaw(yaw_samples, t)
+        dyaw = wrap_angle(ref_yaw - yaw_t)
+        if abs(dyaw) < 1e-9:
+            out.append(p)
+            continue
+        x, y = p[0], p[1]
+        c, s = math.cos(dyaw), math.sin(dyaw)
+        out.append([c * x - s * y, s * x + c * y] + list(p[2:]))
+    return out
 
 
 def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
@@ -140,6 +203,7 @@ def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
 
 
 def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", dashboard_url="http://127.0.0.1:5002",
+                       motion_url="http://127.0.0.1:9102",
                        voxel_size=0.15, max_range=12.0, min_range=0.35, poll_interval_s=0.1,
                        yaw_rate_gate=YAW_RATE_GATE_RAD):
     """Élő Hesai UDP stream feldolgozása a hesai_bridge HTTP API-n (/health,
@@ -189,6 +253,14 @@ def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", dashboard_url="http://
         if not pts_raw:
             time.sleep(poll_interval_s)
             continue
+
+        try:
+            with urllib.request.urlopen(f"{motion_url}/imu/yaw_history", timeout=1.0) as resp:
+                yh = json.loads(resp.read())
+            yaw_samples = [(s["t"], s["yaw"]) for s in yh.get("samples", [])]
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            yaw_samples = []  # deskew silently no-ops, falls back to yaw-rate gate below
+        pts_raw = deskew_points(pts_raw, yaw_samples)
 
         raw_pose = None
         if yaw_rate_gate is not None:
