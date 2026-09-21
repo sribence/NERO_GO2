@@ -23,10 +23,15 @@ ld. javítási minta a `go2-hardware-bridge/.gitmodules`-ben.
 
 ## Robot elérés
 
-- SSH alias: `ssh go2` (`~/.ssh/config`: `Host go2 192.168.123.18`, user `unitree`)
-- Fedélzeti gép: Jetson Orin, Ubuntu, `192.168.123.18`
-- Robot repó a roboton: `~/NERO_GO2` (ugyanaz a submodule-struktúra, saját klón)
-- Pontos IP/port tábla: [mission_control/CONVENTIONS.md](src/go2-brain-logic/mission_control/CONVENTIONS.md) — ez a mérvadó, ne máshonnan idézd.
+- **Helyi Wi-Fi SSH:** `ssh go2` (`~/.ssh/config`: `Host go2 192.168.123.18`, user `unitree`)
+- **Tailscale SSH (Erről a Windows gépről, tailnet tag):** `ssh go2-ts`
+  - Alias a `~/.ssh/config`-ban `100.70.125.40`-re mutat, `id_ed25519_neonpc` kulccsal, jelszó/gateway nem kell.
+- **Tailscale SSH (Másik gépről, nincs alias/kulcs):** `ssh unitree@100.70.125.40`
+  - Feltétel: a gép tagja ugyanannak a tailnetnek (`dualis.fejlesztes.email@` fiók, meghívás/ACL kell). A Tailscale SSH identity-alapon beenged kulcs nélkül is, vagy jelszóval (`123`).
+- **Gateway-en át (ha Tailscale nem elérhető):** `ssh go2-viagw`
+- **Fedélzeti gép:** Jetson Orin, Ubuntu, IP: `192.168.123.18` (helyi Wi-Fi) / `100.70.125.40` (Tailscale)
+- **Robot repó a roboton:** `~/NERO_GO2` (ugyanaz a submodule-struktúra, saját klón)
+- **Pontos IP/port tábla:** [mission_control/CONVENTIONS.md](src/go2-brain-logic/mission_control/CONVENTIONS.md) — ez a mérvadó, ne máshonnan idézd.
 
 ## Push-módszer — FONTOS, sose térj el
 
