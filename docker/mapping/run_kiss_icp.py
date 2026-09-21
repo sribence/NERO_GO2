@@ -1,7 +1,28 @@
 """
 NERO GO2 — KISS-ICP Pure LiDAR Odometry Pipeline
 Runs KISS-ICP on raw Hesai PandarXT-16 point clouds from jsonl datasets.
-No wheel odometry required!
+No wheel odometry required for the trajectory itself -- the raw SDK pose is
+used only as a coarse fast-turn *gate*, see YAW_RATE_GATE_RAD below.
+
+Fast-turn gating -- WHY (see docker/mapping/diagnose_kiss_icp_segments.py and
+the 2026-09-21 live-robot diagnostic session):
+  The Hesai bridge only carries a per-FRAME timestamp, not per-point ones, so
+  KISS-ICP's motion-compensated deskew has nothing to interpolate against
+  (config.data.deskew stays False). During a fast in-place spin (obstacle
+  avoidance mode measured up to ~1 rad/frame at 8 Hz, i.e. hundreds of deg/s)
+  the ~0.1s-per-revolution LiDAR sweep itself gets significantly warped by
+  the rotation happening *during* the sweep, before ICP ever sees it. Feeding
+  that warped scan into scan-to-map ICP produced pose jumps 5-15x the normal
+  frame-to-frame jump and wrecked the accumulated voxel map (walk_live_rect
+  frames 66-79: median jump 0.014m, this window's jumps 0.1-0.6m).
+  Fix: when the raw SDK yaw changed more than YAW_RATE_GATE_RAD since the
+  last frame, skip feeding that frame's points to KISS-ICP entirely (no map
+  update), and just carry KissICP's own pose forward with the raw SDK's
+  (x,y,yaw) delta as a coarse initial-guess seed. Once the spin settles, the
+  next accepted frame runs a normal scan-to-*map* ICP alignment (not
+  scan-to-scan), so it re-localizes against the untouched map rather than
+  trusting the carried-forward raw delta blindly -- confirmed visually in
+  seg_66_79_fastturn_gated.png vs the ungated seg_66_79_fastturn.png.
 """
 
 import json
@@ -15,8 +36,15 @@ import numpy as np
 from kiss_icp.kiss_icp import KissICP
 from kiss_icp.config import KISSConfig
 
+# rad/frame at the dataset's ~8 Hz sample rate (~115 deg/s). Empirically
+# separates the catastrophic breaks (>=0.25, up to 1.0) from normal walking
+# turns (<0.25) in the 2026-09-21 live diagnostic -- see module docstring.
+YAW_RATE_GATE_RAD = 0.25
+
+
 def wrap_angle(a):
     return (a + math.pi) % (2 * math.pi) - math.pi
+
 
 def rotation_matrix_to_euler(R):
     sy = math.sqrt(R[0, 0] * R[0, 0] + R[1, 0] * R[1, 0])
@@ -31,10 +59,48 @@ def rotation_matrix_to_euler(R):
         z = 0.0
     return x, y, z
 
-def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range):
-    """Egy nyers pontlistát (x,y,z[,intensity]) regisztrál KISS-ICP-be és
-    hozzáfűzi a voxel-térkép akkumulátorhoz. Visszaadja a pose trajektória
-    bejegyzést, vagy None-t, ha a frame túl kevés érvényes pontot tartalmazott."""
+
+def planar_delta_matrix(dx, dy, dyaw):
+    """4x4 pose delta from a raw SDK planar (x,y,yaw) step -- used only to
+    carry KissICP's pose forward as a coarse guess while a frame is gated
+    out, never to update the map."""
+    c, s = math.cos(dyaw), math.sin(dyaw)
+    T = np.eye(4, dtype=np.float64)
+    T[0, 0], T[0, 1] = c, -s
+    T[1, 0], T[1, 1] = s, c
+    T[0, 3] = dx
+    T[1, 3] = dy
+    return T
+
+
+def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
+                              raw_pose=None, last_raw_pose=None,
+                              yaw_rate_gate=YAW_RATE_GATE_RAD):
+    """Registers one frame's raw points into KISS-ICP and the voxel-map
+    accumulator, unless the raw SDK pose says this frame happened during a
+    fast spin (see module docstring) -- then it's skipped and the pose is
+    carried forward with the raw delta instead.
+
+    raw_pose / last_raw_pose: (x, y, yaw) from the SDK, or None to disable
+    gating entirely (falls back to registering every frame unconditionally).
+
+    Returns (entry_or_None, gated: bool). entry is the pose dict for the
+    trajectory output; None when the frame had too few points OR was gated.
+    """
+    gated = False
+    if raw_pose is not None and last_raw_pose is not None:
+        dyaw = wrap_angle(raw_pose[2] - last_raw_pose[2])
+        if abs(dyaw) >= yaw_rate_gate:
+            dx = raw_pose[0] - last_raw_pose[0]
+            dy = raw_pose[1] - last_raw_pose[1]
+            T_delta = planar_delta_matrix(dx, dy, dyaw)
+            odo.last_pose = odo.last_pose @ T_delta
+            odo.last_delta = T_delta
+            gated = True
+
+    if gated:
+        return None, True
+
     pts = np.array(pts_raw, dtype=np.float64)[:, :3]
 
     dist = np.hypot(pts[:, 0], pts[:, 1])
@@ -42,7 +108,7 @@ def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range):
     valid_pts = pts[valid]
 
     if len(valid_pts) < 50:
-        return None
+        return None, False
 
     ts = np.zeros(len(valid_pts), dtype=np.float64)
     odo.register_frame(valid_pts, ts)
@@ -70,15 +136,19 @@ def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range):
         "roll": float(roll),
         "pitch": float(pitch),
         "yaw": float(wrap_angle(yaw)),
-    }
+    }, False
 
 
-def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", voxel_size=0.15,
-                       max_range=12.0, min_range=0.35, poll_interval_s=0.1):
+def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", dashboard_url="http://127.0.0.1:5002",
+                       voxel_size=0.15, max_range=12.0, min_range=0.35, poll_interval_s=0.1,
+                       yaw_rate_gate=YAW_RATE_GATE_RAD):
     """Élő Hesai UDP stream feldolgozása a hesai_bridge HTTP API-n (/health,
     /lidar) keresztül. Csak akkor kér új pontfelhőt, ha a packet_count nőtt —
-    a bridge stateless, nincs push/SSE, ezért pollozunk."""
-    print(f"[KISS-ICP][LIVE] bridge={bridge_url} voxel_size={voxel_size}m")
+    a bridge stateless, nincs push/SSE, ezért pollozunk. A dashboard
+    /pose_snapshot végpontját a fast-turn gate-hez kérdezi le (raw SDK yaw) --
+    ha nem érhető el, a gate kikapcsol és minden keret regisztrálva lesz."""
+    print(f"[KISS-ICP][LIVE] bridge={bridge_url} dashboard={dashboard_url} voxel_size={voxel_size}m "
+          f"yaw_rate_gate={yaw_rate_gate}rad")
 
     config = KISSConfig()
     config.mapping.voxel_size = voxel_size
@@ -89,7 +159,9 @@ def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", voxel_size=0.15,
     odo = KissICP(config)
     map_voxels = {}
     last_packet_count = -1
+    last_raw_pose = None
     frame_count = 0
+    gated_count = 0
 
     while True:
         try:
@@ -118,40 +190,71 @@ def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", voxel_size=0.15,
             time.sleep(poll_interval_s)
             continue
 
-        entry = _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range)
+        raw_pose = None
+        if yaw_rate_gate is not None:
+            try:
+                with urllib.request.urlopen(f"{dashboard_url}/pose_snapshot", timeout=1.0) as resp:
+                    p = json.loads(resp.read())
+                raw_pose = (p.get("position_x") or 0.0, p.get("position_y") or 0.0, p.get("yaw") or 0.0)
+            except (urllib.error.URLError, TimeoutError, ConnectionError):
+                pass  # gate silently disabled for this frame if dashboard is down
+
+        entry, gated = _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
+                                                  raw_pose=raw_pose, last_raw_pose=last_raw_pose,
+                                                  yaw_rate_gate=yaw_rate_gate)
+        if raw_pose is not None:
+            last_raw_pose = raw_pose
+        if gated:
+            gated_count += 1
+            continue
         if entry is None:
             continue
 
         frame_count += 1
         entry["frame"] = frame_count
+        entry["gated_total"] = gated_count
         print(json.dumps(entry), flush=True)
 
 
-def run_kiss_icp(dataset_path, voxel_size=0.15, max_range=12.0, min_range=0.35):
-    print(f"[KISS-ICP] Processing {dataset_path} (voxel_size={voxel_size}m)...")
-    
+def run_kiss_icp(dataset_path, voxel_size=0.15, max_range=12.0, min_range=0.35,
+                  yaw_rate_gate=YAW_RATE_GATE_RAD):
+    print(f"[KISS-ICP] Processing {dataset_path} (voxel_size={voxel_size}m, yaw_rate_gate={yaw_rate_gate})...")
+
     config = KISSConfig()
     config.mapping.voxel_size = voxel_size
     config.data.max_range = max_range
     config.data.min_range = min_range
     config.data.deskew = False
-    
+
     odo = KissICP(config)
-    
+
     trajectory = []
     map_voxels = {}
-    
+
     t0 = time.time()
     frame_count = 0
-    
+    gated_count = 0
+    last_raw_pose = None
+
     with open(dataset_path, "r", encoding="utf-8") as f:
         for line in f:
             data = json.loads(line)
             pts_raw = data.get("points", [])
             if not pts_raw:
                 continue
-                
-            entry = _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range)
+
+            raw_pose = None
+            if yaw_rate_gate is not None:
+                raw_pose = (data.get("x") or 0.0, data.get("y") or 0.0, data.get("yaw") or 0.0)
+
+            entry, gated = _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
+                                                      raw_pose=raw_pose, last_raw_pose=last_raw_pose,
+                                                      yaw_rate_gate=yaw_rate_gate)
+            if raw_pose is not None:
+                last_raw_pose = raw_pose
+            if gated:
+                gated_count += 1
+                continue
             if entry is None:
                 continue
 
@@ -160,12 +263,14 @@ def run_kiss_icp(dataset_path, voxel_size=0.15, max_range=12.0, min_range=0.35):
             frame_count += 1
             if frame_count % 100 == 0:
                 print(f"  Processed {frame_count} frames... Current pos: ({x:.2f}, {y:.2f}, {z:.2f})")
-                
+
     elapsed = time.time() - t0
     fps = frame_count / elapsed if elapsed > 0 else 0
-    print(f"[KISS-ICP] Completed {frame_count} frames in {elapsed:.2f}s ({fps:.1f} FPS). Map voxels: {len(map_voxels)}")
-    
+    print(f"[KISS-ICP] Completed {frame_count} frames in {elapsed:.2f}s ({fps:.1f} FPS). "
+          f"Gated (fast-spin, skipped): {gated_count}. Map voxels: {len(map_voxels)}")
+
     return trajectory, list(map_voxels.values())
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--live":
@@ -173,5 +278,6 @@ if __name__ == "__main__":
         run_kiss_icp_live(bridge_url)
     else:
         dataset = sys.argv[1] if len(sys.argv) > 1 else "docker/mapping/walk_kicsi.jsonl"
-        traj, map_pts = run_kiss_icp(dataset)
+        no_gate = "--no-gate" in sys.argv
+        traj, map_pts = run_kiss_icp(dataset, yaw_rate_gate=None if no_gate else YAW_RATE_GATE_RAD)
         print(f"Done. Trajectory points: {len(traj)}")

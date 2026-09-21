@@ -241,6 +241,7 @@ def generate_workbench():
         "walk_kicsi": ("walk_kicsi.jsonl", "🚶 Kis szobai séta (60s)"),
         "walk_seta1": ("walk_seta1.jsonl", "🏃 Nagy séta (90s)"),
         "walk_teszt": ("walk_teszt.jsonl", "🛑 Álló robot (60s)"),
+        "walk_live_rect": ("walk_live_rect_2026-09-21_v2.jsonl", "🤖 ÉLŐ robot, akadálykerülő mód (74s)"),
     }
     
     ds_data = {}
