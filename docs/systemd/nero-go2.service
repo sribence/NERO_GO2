@@ -7,7 +7,7 @@ Wants=docker.service network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/home/unitree/NERO_GO2
-ExecStart=/usr/bin/docker-compose up -d
+ExecStart=/usr/bin/docker-compose up -d --no-build
 ExecStop=/usr/bin/docker-compose down
 TimeoutStartSec=0
 

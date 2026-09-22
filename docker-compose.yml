@@ -5,6 +5,7 @@ services:
   webrtc_bridge:
     build:
       context: ./src/go2-hardware-bridge/webrtc_bridge
+    image: nero_go2/webrtc_bridge:latest
     network_mode: host
     environment:
       - UNITREE_ROBOT_IP=192.168.123.161
@@ -15,6 +16,7 @@ services:
   web_dashboard:
     build:
       context: ./src/go2-gui-visualization/web_dashboard
+    image: nero_go2/web_dashboard:latest
     ports:
       - "8080:8080"
     restart: unless-stopped
@@ -22,6 +24,7 @@ services:
   go2_console:
     build:
       context: ./src/go2-gui-visualization/go2-console
+    image: nero_go2_go2_console:latest
     network_mode: host
     environment:
       - CONSOLE_BACKEND=live
@@ -35,6 +38,7 @@ services:
     build:
       context: ./src/go2-brain-logic/mission_control
       dockerfile: audio/Dockerfile
+    image: nero_go2_mc_audio:latest
     network_mode: host
     devices:
       - "/dev/snd:/dev/snd"
@@ -46,6 +50,7 @@ services:
   mission_control:
     build:
       context: ./src/go2-brain-logic/mission_control
+    image: nero_go2/web_dashboard:latest
     ports:
       - "8000:8000"
     restart: unless-stopped
