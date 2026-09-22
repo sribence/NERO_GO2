@@ -9,6 +9,7 @@ services:
     network_mode: host
     environment:
       - UNITREE_ROBOT_IP=192.168.123.161
+      - UNITREE_AES_128_KEY=${UNITREE_AES_128_KEY:-7c5a74e640766444cc26b19990968133}
     restart: unless-stopped
 
 
