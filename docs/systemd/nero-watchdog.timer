@@ -1,0 +1,11 @@
+[Unit]
+Description=NERO GO2 Auto-Healing Watchdog Timer (Every 1 minute)
+After=nero-go2.service
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=nero-watchdog.service
+
+[Install]
+WantedBy=timers.target

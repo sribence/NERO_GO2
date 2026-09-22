@@ -1,0 +1,8 @@
+[Unit]
+Description=NERO GO2 Auto-Healing Watchdog Service
+After=docker.service nero-go2.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/unitree/NERO_GO2/scripts/nero_watchdog.sh
