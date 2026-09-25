@@ -9,11 +9,11 @@ import urllib.request
 import json
 
 SERVICES = [
-    ("WebRTC Bridge", "http://127.0.0.1:8000/state"),
-    ("Web Dashboard", "http://127.0.0.1:8080/health"),
+    ("WebRTC Bridge", "http://127.0.0.1:5001/state"),
+    ("Web Dashboard", "http://127.0.0.1:8080/"),
+    ("Mission Control", "http://127.0.0.1:8000/"),
     ("Go2 Console", "http://127.0.0.1:9200"),
     ("Motion VUI LED", "http://127.0.0.1:9102/led"),
-    ("Perception API", "http://127.0.0.1:9102/persons"),
 ]
 
 CONTAINERS = [

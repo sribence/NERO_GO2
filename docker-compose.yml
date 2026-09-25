@@ -18,8 +18,12 @@ services:
     build:
       context: ./src/go2-gui-visualization/web_dashboard
     image: nero_go2/web_dashboard:latest
-    ports:
-      - "8080:8080"
+    network_mode: host
+    environment:
+      - DDS_NETWORK_INTERFACE=eth0
+      - PORT=8080
+    volumes:
+      - ./src/go2-gui-visualization/web_dashboard:/app
     restart: unless-stopped
 
   go2_console:
@@ -32,6 +36,8 @@ services:
       - CORE_URL=http://127.0.0.1:9101
       - MOTION_URL=http://127.0.0.1:9102
       - AUDIO_URL=http://127.0.0.1:9107
+    volumes:
+      - ./src/go2-gui-visualization/go2-console:/app
     restart: unless-stopped
 
   # Audio Service
@@ -52,7 +58,10 @@ services:
     build:
       context: ./src/go2-brain-logic/mission_control
     image: nero_go2/web_dashboard:latest
-    ports:
-      - "8000:8000"
+    network_mode: host
+    environment:
+      - DDS_NETWORK_INTERFACE=eth0
+      - PORT=8000
+    volumes:
+      - ./src/go2-gui-visualization/web_dashboard:/app
     restart: unless-stopped
-
