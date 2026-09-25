@@ -145,11 +145,21 @@ JUMP_MEDIAN_WINDOW = 20
 JUMP_ANOMALY_MULT = 4.0
 JUMP_ANOMALY_MIN_M = 0.15
 
+# Same idea, for orientation: a rectangular/symmetric room lets ICP lock onto
+# a false ~90deg-rotated solution while the *position* barely jumps (gate
+# above misses it). Track frame-to-frame |dyaw| the same way, on its own
+# rolling median -- 2026-09-22 live test showed two 90deg-offset overlaid
+# room outlines that the position-only gate let straight through.
+YAW_JUMP_MEDIAN_WINDOW = 20
+YAW_JUMP_ANOMALY_MULT = 4.0
+YAW_JUMP_ANOMALY_MIN_RAD = 0.35  # ~20deg floor so normal turning frames don't trip it
+
 
 def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
                               raw_pose=None, last_raw_pose=None,
                               yaw_rate_gate=YAW_RATE_GATE_RAD,
-                              jump_history=None, prev_kiss_xy=None):
+                              jump_history=None, prev_kiss_xy=None,
+                              yaw_jump_history=None, prev_kiss_yaw=None):
     """Registers one frame's raw points into KISS-ICP and the voxel-map
     accumulator, unless the raw SDK pose says this frame happened during a
     fast spin (see module docstring) -- then it's skipped and the pose is
@@ -205,13 +215,29 @@ def _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
         if prev_kiss_xy is not None:
             jump_m = math.hypot(x - prev_kiss_xy[0], y - prev_kiss_xy[1])
             med = float(np.median(jump_history)) if jump_history else 0.0
-            if jump_history and jump_m > max(JUMP_ANOMALY_MIN_M, med * JUMP_ANOMALY_MULT):
+            pos_anomalous = bool(jump_history) and jump_m > max(JUMP_ANOMALY_MIN_M, med * JUMP_ANOMALY_MULT)
+
+            yaw_anomalous = False
+            if yaw_jump_history is not None and prev_kiss_yaw is not None:
+                yaw_jump = abs(wrap_angle(yaw - prev_kiss_yaw))
+                yaw_med = float(np.median(yaw_jump_history)) if yaw_jump_history else 0.0
+                yaw_anomalous = bool(yaw_jump_history) and yaw_jump > max(
+                    YAW_JUMP_ANOMALY_MIN_RAD, yaw_med * YAW_JUMP_ANOMALY_MULT)
+                if not yaw_anomalous:
+                    yaw_jump_history.append(yaw_jump)
+                    del yaw_jump_history[:-YAW_JUMP_MEDIAN_WINDOW]
+            elif yaw_jump_history is not None:
+                yaw_jump_history.append(0.0)
+
+            if pos_anomalous or yaw_anomalous:
                 map_paused = True
             else:
                 jump_history.append(jump_m)
                 del jump_history[:-JUMP_MEDIAN_WINDOW]
         else:
             jump_history.append(0.0)
+            if yaw_jump_history is not None:
+                yaw_jump_history.append(0.0)
 
     R = pose[:3, :3]
     t_vec = pose[:3, 3]
@@ -264,6 +290,8 @@ def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", dashboard_url="http://
     map_paused_count = 0
     jump_history = []
     prev_kiss_xy = None
+    yaw_jump_history = []
+    prev_kiss_yaw = None
 
     while True:
         try:
@@ -312,7 +340,8 @@ def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", dashboard_url="http://
         entry, gated = _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
                                                   raw_pose=raw_pose, last_raw_pose=last_raw_pose,
                                                   yaw_rate_gate=yaw_rate_gate,
-                                                  jump_history=jump_history, prev_kiss_xy=prev_kiss_xy)
+                                                  jump_history=jump_history, prev_kiss_xy=prev_kiss_xy,
+                                                  yaw_jump_history=yaw_jump_history, prev_kiss_yaw=prev_kiss_yaw)
         if raw_pose is not None:
             last_raw_pose = raw_pose
         if gated:
@@ -322,6 +351,7 @@ def run_kiss_icp_live(bridge_url="http://127.0.0.1:5003", dashboard_url="http://
             continue
 
         prev_kiss_xy = (entry["x"], entry["y"])
+        prev_kiss_yaw = entry["yaw"]
         if entry["map_paused"]:
             map_paused_count += 1
 
@@ -354,6 +384,8 @@ def run_kiss_icp(dataset_path, voxel_size=0.15, max_range=12.0, min_range=0.35,
     last_raw_pose = None
     jump_history = []
     prev_kiss_xy = None
+    yaw_jump_history = []
+    prev_kiss_yaw = None
 
     with open(dataset_path, "r", encoding="utf-8") as f:
         for line in f:
@@ -369,7 +401,8 @@ def run_kiss_icp(dataset_path, voxel_size=0.15, max_range=12.0, min_range=0.35,
             entry, gated = _register_and_accumulate(odo, map_voxels, pts_raw, min_range, max_range,
                                                       raw_pose=raw_pose, last_raw_pose=last_raw_pose,
                                                       yaw_rate_gate=yaw_rate_gate,
-                                                      jump_history=jump_history, prev_kiss_xy=prev_kiss_xy)
+                                                      jump_history=jump_history, prev_kiss_xy=prev_kiss_xy,
+                                                      yaw_jump_history=yaw_jump_history, prev_kiss_yaw=prev_kiss_yaw)
             if raw_pose is not None:
                 last_raw_pose = raw_pose
             if gated:
@@ -379,6 +412,7 @@ def run_kiss_icp(dataset_path, voxel_size=0.15, max_range=12.0, min_range=0.35,
                 continue
 
             prev_kiss_xy = (entry["x"], entry["y"])
+            prev_kiss_yaw = entry["yaw"]
             if entry["map_paused"]:
                 map_paused_count += 1
 
