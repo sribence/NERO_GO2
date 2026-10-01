@@ -56,6 +56,8 @@ külön TODO.md-vel rendelkezik.
 
 ## 🔭 3. Hosszú Távú Feladatok (Long-Term / Advanced Vision)
 
+- [ ] **OmniVision 360 modul** (4 halszem-kamera, 360° bowl-nézet + Go2 3D modell, LiDAR RGB-színezés, YOLO körben, emberkerülő autonóm felfedezés, később hő/IR + irányított mikrofon) — terv és TODO-k: [docs/21-omnivision-360-terv.md](docs/21-omnivision-360-terv.md), branch: `feature/omnivision-360`.
+
 > **[Klón: C:SERSSERNERO_GO2 � SLAM/DOCS áG]**
 - [ ] **Autonóm Waypoint Navigáció:**
   - Két pont kijelölése a webes 3D/2D térképen és az autonóm útvonaltervező (`/follow_waypoints`) végrehajtása.
