@@ -6,6 +6,21 @@
 
 ---
 
+## Állapot (2026-10-01, este) — 1. kódkör kész, mock módban
+
+![OmniView demo](img/omniview_demo.png)
+
+| Komponens | Repó / branch `feature/omnivision-360` | Állapot |
+|---|---|---|
+| `omni` :9114 (rig, kameramodell, rögzítés, rektifikálás, YOLO + hő 360, követés, színezés, voxel, stream) | go2-brain-logic | kész, mock módban végigfut (7/7 kamera, ~11 Hz) |
+| `safety_guard` :9115 + pursuit + nav_local + social layer | go2-brain-logic | kész, a navigation/mapping/follow_executor rákötve |
+| OmniView UI (`/omni`, `?demo=1`) | go2-brain-logic (digital-twin) | kész demóban; élő mock-backend teszt folyamatban |
+| `thermal_bridge` :9120, `maixsense_bridge` :9121 | go2-hardware-bridge | kész mockkal; A010 protokoll a Sipeed-forrásokból |
+| Tesztek | — | brain-logic 253, hw-bridge 36, mind zöld |
+
+Hardveren **semmi nem futott még**. Következő: kamerák felszerelése → `CAL-1..6` kalibráció → Jetson-büdzsé mérése (`BUD-4`) → `SAF-9` fizikai teszt-protokoll, MIELŐTT bármi autonóm módban mozog.
+Interfészek: `go2-brain-logic/mission_control/omni/CONTRACTS.md`.
+
 ## 0. Összefoglaló
 
 | Képesség | Megoldás egy mondatban |
