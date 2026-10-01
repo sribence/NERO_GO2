@@ -29,6 +29,20 @@
 
 ## 1. Hardver
 
+### 1.0 Döntött rig (2026-10-01) — ez felülírja az 1.1 interfész-opcióit
+
+| cam_id | Típus | Hely | Csatlakozás |
+|---|---|---|---|
+| `rgb_front` | USB webkamera, halszem | elöl | UVC MJPEG |
+| `rgb_left`, `rgb_right`, `rgb_rear` | USB webkamera, széles látószög / halszem | oldalt, hátul | UVC MJPEG |
+| `th_front_narrow` | USB hőkamera, szűk FOV | elöl | UVC (`thermal_bridge` :9120) |
+| `th_front_wide` | USB hőkamera, széles FOV | elöl | UVC (`thermal_bridge` :9120) |
+| `tof_rear` | Sipeed MaixSense A010 ToF, 100×100 | hátul | USB-serial (`maixsense_bridge` :9121) |
+
+Cél: biztonsági szett — éjszakai felügyelet, ember keresése és **követése biztonságos távolságból** (≥ 2.5 m, a `safety_guard` nem írható felül).
+Interfész-szerződés a modulok között: `go2-brain-logic/mission_control/omni/CONTRACTS.md`.
+USB-figyelmeztetés: 7 USB-eszköz → legalább 2 külön USB-vezérlő / aktív hub, MJPEG kötelező az RGB-kameráknál (HW-6 mérés).
+
 ### 1.1 Kamerák (4 db, körben)
 - [ ] **HW-1** Kameratípus kiválasztása. Követelmény: ≥ 180° HFOV halszem (4 × 90° + átfedés a varráshoz és a kalibrációhoz), ≥ 1280×960, ≥ 20 fps, jó fényérzékenység (IMX462/IMX290/IMX678 osztály). Ha lehet: **global shutter** vagy legalább külső trigger-bemenet.
 - [ ] **HW-2** Interfész döntése (sorrendben, ajánlottal kezdve):
@@ -60,6 +74,8 @@
 |---|---|---|---|---|
 | `omni` | `go2-brain-logic/mission_control/omni/` | **9114** | ÚJ | GPU-folyamat: 4 kamera rögzítése, rektifikálás, YOLO multi-cam, LiDAR-színezés, voxel RGB-térkép, streamelés |
 | `safety_guard` | `go2-brain-logic/mission_control/safety_guard/` | **9115** | ÚJ | ember-tudatos sebességkorlátozó; MINDEN mozgásparancs ezen megy át az `mc_motion` előtt |
+| `thermal_bridge` | `go2-hardware-bridge/thermal_bridge/` | **9120** | ÚJ | 2 elülső USB-hőkamera, nyers °C-kép |
+| `maixsense_bridge` | `go2-hardware-bridge/maixsense_bridge/` | **9121** | ÚJ | MaixSense A010 ToF (hátul), 100×100 mélységkép |
 | `mapping` | meglévő (9102) | — | bővül | social layer a griden, pose a LiDAR-odometriából, frontier-pontozásban az ember-költség |
 | `navigation` | meglévő (9103) | — | bővül | A* social costtal + lokális tervező (DWA-lite) dinamikus emberekkel |
 | `perception` | meglévő (9112) | — | marad | elöl, RealSense alapú követés; az `omni` person-trackjei kiegészítik |
