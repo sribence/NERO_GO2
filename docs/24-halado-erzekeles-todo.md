@@ -1,0 +1,22 @@
+# Haladó érzékelés és taktika — későbbi TODO (2026-10-02)
+
+Forrás: operátori ötletlista. Státusz: **nincs elkezdve**. Előfeltétel: OmniVision 360 (doc 21–23) élesben fut.
+Minden mozgást érintő tétel a `safety_guard`-on át megy; ember-közelség ≥ 2.5 m (felülírhatatlan).
+
+| ID | Ötlet | Lényeg | Építőkövek | Nyitott kérdés / kockázat |
+|---|---|---|---|---|
+| ADV-1 | **Termikus nyomkövetés („szellemlábnyomok”)** | Menekülő személy felkutatása a padlón és kilincseken hagyott maradékhő (30–90 s) és a voxeltérkép felületi hőanomáliái alapján | `omni/colorize` hőcsatorna, `VoxelMap.temp`, MLX90640 (lefelé döntött szűk FOV), háttér-hőmérséklet modell voxelenként, lecsengési idő → nyom-kor becslés | Az MLX 32×24 felbontása: a talpnyom 2 m-ről ~1–2 px. Kell-e lefelé néző, külön hőkamera? Fényes padló hővisszaverése. |
+| ADV-2 | **Szeizmikus propriocepció** | Álló helyzetben a 4 láb és a motoráramok geofonként: födémrezgésből a fal mögött / kanyarban közeledő lépések iránya | `LowState` (`foot_force`, motor `tau_est`/áram) 500 Hz+ rögzítés, sávszűrés 2–40 Hz, lépés-impulzus detektor, irány = 4 láb közti időkülönbség / amplitúdó-arány (TDOA) | A `LowState` mintavétele és zajszintje csak mérésből derül ki. Mozgás közben használhatatlan. |
+| ADV-3 | **Eseményvezérelt szenzor-zónázás** | USB- és Jetson-tehermentesítés: a 4 halszemkamera csak abban a 90°-os szektorban streamel és futtat YOLO-t, ahol a LiDAR vagy az MCU-s hőkamera mozgást lát | `omni/budget` (BUD-1), LiDAR-háttérkivonás (dinamikus voxel), MLX-mozgásdetekt, `CaptureManager` kamera ki/be (UVC stream stop/start), a safety-zóna szektorai mindig aktívak | A kamera újraindítási ideje (UVC 0.3–1 s) → inkább alacsony fps-re váltás, mint leállítás. **Legjobb ár/érték, ezzel kezdeni.** |
+| ADV-4 | **RF-falonátlátás (Wi-Fi CSI)** | Mozgás detektálása zárt ajtó vagy gipszkarton mögött a rádiójel fáziseltolódásából, rávetítve a 3D voxelrácsra | CSI-képes NIC (ESP32-S3 CSI, Intel 5300 / Atheros patch, Nexmon), saját adó-vevő pár a robot és egy telepített node között, Doppler/variancia → mozgás-valószínűség szektoronként | Pontos lokalizáció egy robotról nehéz, inkább csak „van mozgás arra” jelzés. Jogi: csak saját adó/eszköz CSI-je. |
+| ADV-5 | **NLOS akusztikus sarok-radar** | 18–20 kHz-es mikro-chirp, a falakról visszaverődő diffrakció elemzése, hogy egy 90°-os folyosókanyar mögé „lásson” befordulás előtt | 2–4 ultrahang-közeli hangszóró + mikrofontömb (FUT-6 tömb), chirp + matched filter, a voxeltérképből számolt visszaverő geometria, változás-detekció (üres folyosó referencia) | Gyerekek / állatok hallhatják a 18–20 kHz-et. Visszhangos tér, alacsony SNR. Kutatási szint. |
+| ADV-6 | **Juhászkutya-doktrína (terelés)** | Kontaktus nélküli terelés Voronoi-alapú útvonal-levágással, stroboszkóppal és dinamikus pozicionálással kijárat vagy zsákutca felé | `pursuit` + `planner` (Voronoi a szabad téren), ember-predikció, `safety_guard` zónák, LED/reflektor | **Safety + jog:** min. 2.5 m mindig, menekülőutat nem zárhat el teljesen. A stroboszkóp epilepsziás rohamot válthat ki (3–60 Hz kerülendő). Csak jogi/üzemeltetői jóváhagyással, operátori felügyelettel. |
+| ADV-7 | **Akusztikus lopakodó járás** | Lépéscsillapítás a voxeltérképből felismert talajminőség alapján (soft-landing) | talaj-osztályozás (RGB-szín + LiDAR-intenzitás + rezgés → kemény/puha/fém/csempe), járásmód és testmagasság profil (`stealth`), `mc_motion` gait/`BodyHeight`/lépésmagasság API | Az SDK high-level szinten kevés lépés-paramétert enged. Teljes soft-landing csak `LowCmd`-del (safety-kritikus, doc 17). |
+| ADV-8 | **Szurikáta-póz (kétlábas periszkóp)** | Hátsó lábakra állás, törzsemelés magas prioritású szkenneléskor: a szenzorok ~90 cm-en, belátás pult, paraván mögé és járműbe | gyári póz (`StandUp`/`Hello`-szerű vagy `HandStand`/`BackStand`, ha a firmware tudja — `/capabilities`), rövid szkennelés, utána vissza; misszió-op `periscope` | Stabilitás a 7 USB-eszközzel és a plusz tömeggel. A fej-kamerák iránya pózban. Csak álló, sík talajon, 3.5 m-en belül ember nélkül. |
+
+## Javasolt sorrend
+1. **ADV-3** (azonnal hasznos: Jetson- és USB-terhelés csökkentése)
+2. **ADV-1**, **ADV-8** (meglévő hőkamera és póz-API)
+3. **ADV-2**, **ADV-7** (először `LowState`-mérés)
+4. **ADV-5**, **ADV-4** (kutatás, extra hardver)
+5. **ADV-6** (csak jogi és safety-jóváhagyás után)

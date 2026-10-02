@@ -55,6 +55,7 @@ külön TODO.md-vel rendelkezik.
 ---
 
 ## 🔭 3. Hosszú Távú Feladatok (Long-Term / Advanced Vision)
+- [ ] **Haladó érzékelés (ADV-1..8):** termikus nyomkövetés, szeizmikus propriocepció, eseményvezérelt szenzor-zónázás, Wi-Fi CSI, NLOS akusztikus radar, terelés, lopakodó járás, szurikáta-póz — [docs/24-halado-erzekeles-todo.md](docs/24-halado-erzekeles-todo.md).
 
 - [ ] **OmniVision 360 modul** (4 halszem-kamera, 360° bowl-nézet + Go2 3D modell, LiDAR RGB-színezés, YOLO körben, emberkerülő autonóm felfedezés, később hő/IR + irányított mikrofon) — terv és TODO-k: [docs/21-omnivision-360-terv.md](docs/21-omnivision-360-terv.md), branch: `feature/omnivision-360`.
 

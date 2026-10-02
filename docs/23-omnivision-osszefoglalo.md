@@ -101,3 +101,20 @@ Bowl 360-nézet + Go2 URDF élő lábakkal; 5 nézet (orbit / chase / top / FPV 
 5. Fizikai safety-protokoll (`SAF-9`) kötelező, mielőtt bármi autonóm módban mozog.
 6. Utcai kamerás / hőkamerás megfigyelés: GDPR és helyi szabályok.
 7. Az `mc_motion` default portja (9102) ütközik a `mapping`-gel — `MOTION_URL`-lel kell megadni.
+
+## 12. Állapot lezáráskor (2026-10-02) — rate limit miatt félbemaradt munka
+Kész + tesztelt + pusholva: omni, safety_guard (+ dead-man / sprint / akció-kapu / flotta-buborék), pursuit, nav_local, social layer, OmniView UI, mission tervező (M2), világ / szabályok / időzítő (M5), NL + gesztus (M6), thermal_bridge (UVC), maixsense_bridge (Sipeed-egyezés, golden tesztek, pty fake device). Tesztek: brain-logic 513, hw-bridge 62 zöld.
+
+**WIP** (`wip:` commitok; szintaxis rendben, de NEM befejezett, NEM bekötött, NEM tesztelt):
+| Modul | Fájlok | Hiányzik |
+|---|---|---|
+| M1 mission végrehajtó | `mission/executor.py`, `mission/schema.py` | `mission/app.py`, Dockerfile, tesztek, M2/M5/M6 bekötése, `request_passage`/`capture`/zóna-érték |
+| R1 bizonyíték-rögzítő | `omni/recorder.py`, `omni/capture.py` (részben) | `/record`, `/incidents`, `/capture` route-ok, tesztek |
+| F1 flotta | `fleet/registry.py`, `allocator.py`, `sync.py`, `app.py` (részben) | `/fleet` UI, tesztek, compose |
+| M4 misszió-UI | `digital-twin/static/omni/mission*.js`, `gamepad.js` | bekötés `omni.js`/`omni.html`-be, validálás |
+| M7 mobil UI | `digital-twin/static/omni/mobile/` | `omni_mobile.html`, `/m` route, PWA |
+| HW1 MLX90640 | `thermal_bridge/firmware/`, `mlx90640_protocol.py`, `mock_scene.py` | soros driver, config, tesztek, fordítás |
+| G1 gamepad | `gamepad_bridge/` (controller, devices, profiles) | szolgáltatás, tesztek, README |
+
+Következő session: a fenti WIP-ek befejezése modulonként (a szerződések: `omni/CONTRACTS.md`, `mission/CONTRACT.md` §9), utána compose (`mission` :9116, `gamepad_bridge` :9122), majd Jetson-mérés.
+Új ötletek (későbbi TODO): [24-halado-erzekeles-todo.md](24-halado-erzekeles-todo.md).
