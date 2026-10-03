@@ -40,6 +40,25 @@ Döntés (2026-10-02): az új fejlesztések **ROS 2 alapon**, lokális gépen + 
 ## 4. Váltás a módok között
 `stealth` misszió-profil → ha az S2 policy elérhető és validált: policy-mód; különben S0 + S1. A váltás csak álló helyzetben (stand → policy betöltés → stand).
 
+## 6. Sport mód vs. saját low-level — hibrid működés
+| | Gyári sport mód | Saját low-level (`LowCmd`) |
+|---|---|---|
+| Ki számolja a járást | a Unitree beépített mozgásvezérlője a roboton | a mi policy-nk (Jetson / ROS 2), 500 Hz `rt/lowcmd` |
+| Mit küldünk | `SportClient`: `Move(vx,vy,vyaw)`, gaitek, akciók (ugrás, ül, hello…) | 12 motor: pozíció, sebesség, Kp, Kd, nyomaték + CRC |
+| Váltás | — | `MotionSwitcherClient.ReleaseMode()` (sport ki), `CheckMode()` (mi aktív), `SelectMode(name)` (vissza) — [go2_stand_example.cpp](https://github.com/unitreerobotics/unitree_sdk2/blob/main/example/go2/go2_stand_example.cpp) |
+| Ha leáll a vezérlő | a sport mód tartja magát | a robot **összeesik** (nincs, ami tartsa) → watchdog kell |
+
+**Hibrid (javasolt):** alapból sport mód (minden gyári mód, gyors váltás). Csak a `stealth` futtatja a saját policy-t:
+1. sport: `StandDown` (fekvés) → `ReleaseMode()` → `CheckMode()` = üres
+2. saját policy: feláll → lopakodik → leül / lefekszik
+3. `SelectMode(<sport>)` → `RecoveryStand` → minden gyári mód újra elérhető
+
+- A váltás **nem azonnali**: a gyári példa 5 s-os ciklusokban próbálkozik. A tényleges idő mérendő; becslés: néhány s + a felállás.
+- Váltani csak stabil pózban (fekve) szabad, menet közben soha.
+- **Vészhelyzet lopakodás közben** (gyorsan el kell menni): vagy elfogadjuk a váltási időt, vagy a stealth policy-t **gyors menekülésre is** tanítjuk (`cmd_vel` 0–1.5 m/s tartomány, a jutalomban a zaj súlya a sebességgel csökken). Javaslat: az utóbbi, mert Isaac Labben egy policy több sebességtartományra tanítható.
+- **A futást nem kell külön tanítani**, ha sport módban maradunk hozzá; csak akkor kell, ha a stealth módból váltás nélkül akarunk futni.
+- Biztonság: a `ReleaseMode` után minden a mi kódunkon múlik (doc 17: limit, watchdog, E-stop). Az első tesztek felfüggesztett robottal.
+
 ## 5. TODO
 - [ ] S0: `/capabilities` futtatása a valódi roboton → mely gait / testmagasság API él
 - [ ] S1: talaj-osztályozó a voxeltérképre + költségréteg
@@ -47,4 +66,5 @@ Döntés (2026-10-02): az új fejlesztések **ROS 2 alapon**, lokális gépen + 
 - [ ] S2-b: MuJoCo sim2sim, ONNX export, ROS 2 policy node
 - [ ] S2-c: `LowCmd` bridge + safety-réteg (doc 17), felfüggesztett teszt
 - [ ] S3: talpbetét-prototípus + súrlódás-mérés
+- [ ] Mérés: `ReleaseMode` → `SelectMode` oda-vissza váltási idő, fekvő pózból
 - [ ] Zajmérési protokoll (dB(A), 3 talaj, A/B)
