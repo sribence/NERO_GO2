@@ -20,3 +20,22 @@ Minden mozgást érintő tétel a `safety_guard`-on át megy; ember-közelség �
 3. **ADV-2**, **ADV-7** (először `LowState`-mérés)
 4. **ADV-5**, **ADV-4** (kutatás, extra hardver)
 5. **ADV-6** (csak jogi és safety-jóváhagyás után)
+
+## RL-skillek (Isaac Lab → ROS 2 → Go2, low-level módban)
+Részletek: [doc 25](25-halk-lepkedes-kutatas.md) (sport mód vs. low-level, hibrid váltás).
+A saját policy-k között a váltás egy vezérlési ciklus (ms), a sport mód és a saját vezérlés között néhány s, csak fekvő pózból.
+
+| ID | Skill | Lényeg | Bemenet | Megjegyzés |
+|---|---|---|---|---|
+| SK-1 | **stealth + escape** (egy policy) | 0–1.5 m/s; a zajbüntetés (talp-kontakt sebesség, ütközési csúcs) súlya a kért sebességgel csökken → lassan halk, gyorsan menekül | IMU, ízületállapot, `cmd_vel` | ADV-7; az első skill |
+| SK-2 | **jump / climb** (felugrás dobozra, fotelra) | külön skill-policy, a tervező adja a cél-pozíciót és -magasságot | + magasságtérkép (LiDAR / voxel → height-scan) | ref.: [Robot Parkour Learning](https://arxiv.org/abs/2309.05665), [Extreme Parkour](https://arxiv.org/abs/2309.14341); curriculum: 20 → 30 → 40 cm kemény doboz → puha; a puha felület kontakt-merevségét randomizálni kell |
+| SK-3 | **skill-választó** | stealth / escape / jump között vált a misszió-op és a terep alapján | misszió + térkép | a policy-k induló állapotára is randomizálni kell (sima átmenet) |
+
+**Sim-to-real feltételek:**
+1. pontos URDF + tömeg (7 USB-eszköz, konzol);
+2. motormodell a valódi robotról mérve (késleltetés, nyomaték, PD);
+3. domain randomization;
+4. a policy csak a roboton is elérhető bemenetet kap (a privilegizált adat csak a critic-é);
+5. MuJoCo sim2sim → felfüggesztett robot → sík talaj → matrac (ugrásnál).
+
+**Sorrend:** SK-1 → járás sim2real validálva → SK-2 → SK-3.
